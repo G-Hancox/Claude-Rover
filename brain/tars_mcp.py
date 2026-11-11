@@ -118,6 +118,22 @@ async def show(text: str, seconds: int = 15) -> str:
     return f"Showing on screen for {int(seconds)} s." if text else "Screen cleared."
 
 
+@mcp.tool()
+async def personality(mode: str = "", honesty: int = -1, humor: int = -1) -> str:
+    """Read or change who's talking through TARS. With no arguments, just reports.
+    mode: "claude" (you, as yourself) or "tars" (you playing TARS from Interstellar).
+    honesty, humor: TARS's settings, 0-100 (honesty sets bluntness, never truthfulness)."""
+    changes = {}
+    if mode:
+        changes["mode"] = mode.lower()
+    if honesty >= 0:
+        changes["honesty"] = int(honesty)
+    if humor >= 0:
+        changes["humor"] = int(humor)
+    p = await _call(tars.persona, **changes) if changes else await _call(tars.persona)
+    return f"Mode: {p['mode']}. Honesty {p['honesty']}%, humor {p['humor']}%."
+
+
 def _transcribe(wav_bytes):
     global _whisper
     try:

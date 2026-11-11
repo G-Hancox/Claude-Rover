@@ -575,5 +575,230 @@ class ScreenServerTests(unittest.TestCase):
             disp.close()
 
 
+
+
+# ---- wake word, heard queue, persona ---------------------------------------------------
+
+from tars.persona import Persona  # noqa: E402
+from tars.wake import (CHUNK, RATE, Detector, Features, Heard, WakeListener,  # noqa: E402
+                       beep_wav, to_wav)
+
+
+def speechy(seconds=1.0, amp=0.2, seed=0):
+    """Syllable-shaped noise in the speech band: passes the 'is this speech?' gates."""
+    import numpy as np
+    rng = np.random.default_rng(seed)
+    n = int(RATE * seconds)
+    t = np.arange(n) / RATE
+    tone = sum(np.sin(2 * np.pi * f * t + rng.uniform(0, 6)) for f in (420, 900, 1500, 2300))
+    tone += 0.3 * rng.standard_normal(n)
+    env = np.clip(np.sin(2 * np.pi * 2.5 * t), 0, None) ** 2   # ~3 syllables
+    return (amp * tone / 4 * env).astype(np.float32)
+
+
+class FakeStream:
+    """Feeds the listener scripted audio, 100 ms at a time."""
+
+    def __init__(self, parts):
+        import numpy as np
+        self.np = np
+        self.audio = np.concatenate(parts)
+        self.pos = 0
+        self.opened = 0
+
+    def open(self):
+        self.opened += 1
+
+    def read(self, n):
+        if self.pos >= len(self.audio):
+            raise EOFError("done")
+        chunk = self.audio[self.pos:self.pos + n]
+        self.pos += n
+        if len(chunk) < n:
+            chunk = self.np.pad(chunk, (0, n - len(chunk)))
+        return (chunk * 32767).astype("<i2").tobytes()
+
+    def close(self):
+        pass
+
+
+class WakeTests(unittest.TestCase):
+    def silence(self, seconds):
+        import numpy as np
+        return np.zeros(int(RATE * seconds), np.float32)
+
+    def test_real_model_loads_and_scores(self):
+        try:
+            det = Detector()
+        except ImportError:
+            self.skipTest("onnxruntime not installed")
+        score = det.model(det.features.fixed(speechy()))
+        self.assertTrue(0.0 <= score <= 1.0)
+        self.assertEqual(det.features.fixed(speechy()).shape, (62, 39))
+
+    def test_silence_and_bangs_never_reach_the_model(self):
+        import numpy as np
+        calls = []
+        det = Detector(model=lambda f: calls.append(1) or 1.0)
+        det.check(self.silence(1.0), 10.0)
+        bang = self.silence(1.0)
+        bang[100] = 0.9
+        bang += 0.02 * np.random.default_rng(1).standard_normal(RATE).astype(np.float32)
+        det.check(bang, 10.1)
+        self.assertEqual(calls, [])
+
+    def test_needs_two_hits_then_cools_down(self):
+        det = Detector(model=lambda f: 0.99)
+        w = speechy()
+        self.assertEqual(det.check(w, 10.0)[0], False)   # first hit alone isn't enough
+        self.assertEqual(det.check(w, 10.1)[0], True)
+        self.assertEqual(det.check(w, 10.2)[0], False)   # cooldown
+        self.assertEqual(det.check(w, 10.3)[0], False)
+
+    def test_low_scores_never_wake(self):
+        det = Detector(model=lambda f: 0.3)
+        self.assertFalse(any(det.check(speechy(seed=i), 10 + i * 0.1)[0] for i in range(20)))
+
+    def run_listener(self, parts, busy=None, model=lambda f: 0.99):
+        heard = Heard()
+        beeps = []
+        beeping = []   # the beep takes ~0.5 s of audio, like the real one does
+
+        def beep():
+            beeps.append(1)
+            beeping.extend([1] * 5)
+
+        def is_busy():
+            if busy is not None:
+                return busy()
+            return bool(beeping and beeping.pop())
+
+        lst = WakeListener(FakeStream(parts), Detector(model=model), heard, busy=is_busy, beep=beep)
+        lst._running = True
+        lst._resume.set()
+        # run the loop once in this thread; it ends when the fake stream runs out
+        orig_sleep = time.sleep
+        import tars.wake as wk
+        wk.time.sleep = lambda s: None
+        try:
+            lst._running = True
+            t = threading.Thread(target=lst._loop)
+            t.start()
+            wait_for(lambda: lst.error is not None, 5)
+            lst._running = False
+            t.join(3)
+        finally:
+            wk.time.sleep = orig_sleep
+        return heard, beeps
+
+    def test_wake_then_capture_what_was_said(self):
+        heard, beeps = self.run_listener(
+            [self.silence(1.0), speechy(0.6), self.silence(0.6), speechy(2.0, seed=5), self.silence(2.0)])
+        self.assertEqual(len(beeps), 1)
+        item = heard.wait_after(0, 0)
+        self.assertIsNotNone(item)
+        num, kind, wav_bytes = item
+        self.assertEqual(kind, "wav")
+        with wave.open(io.BytesIO(wav_bytes)) as w:
+            secs = w.getnframes() / w.getframerate()
+        self.assertGreater(secs, 1.5)    # the command, not the wake phrase
+        self.assertLess(secs, 4.0)       # stopped after the silence
+
+    def test_no_one_speaks_after_wake_means_nothing_queued(self):
+        heard, beeps = self.run_listener([self.silence(1.0), speechy(0.6), self.silence(7.0)])
+        self.assertEqual(len(beeps), 1)
+        self.assertEqual(heard.latest_id(), 0, "nothing should be queued")
+
+    def test_doesnt_wake_while_tars_is_busy(self):
+        heard, beeps = self.run_listener([self.silence(1.0), speechy(1.0), speechy(2.0), self.silence(2)],
+                                         busy=lambda: True)
+        self.assertEqual(beeps, [])
+        self.assertEqual(heard.latest_id(), 0, "nothing should be queued")
+
+    def test_heard_queue_long_poll(self):
+        h = Heard()
+        self.assertIsNone(h.wait_after(0, 0.05))
+        threading.Timer(0.1, lambda: h.add("hello", "text")).start()
+        self.assertEqual(h.wait_after(0, 2), (1, "text", "hello"))
+        h.add(b"RIFF", "wav")
+        self.assertEqual(h.wait_after(1, 0)[0], 2)
+        self.assertEqual(h.latest_id(), 2)
+
+    def test_beep_is_a_short_wav(self):
+        with wave.open(io.BytesIO(beep_wav())) as w:
+            self.assertLess(w.getnframes() / w.getframerate(), 0.3)
+        self.assertEqual(to_wav(b"\0\0" * 10)[:4], b"RIFF")
+
+    def test_features_shape(self):
+        self.assertEqual(Features().fixed(speechy(0.5)).shape, (62, 39))   # short audio is padded
+
+
+class PersonaTests(unittest.TestCase):
+    def test_switch_validate_and_remember(self):
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Config(persona_file=os.path.join(d, "p.json"))
+            p = Persona(cfg)
+            self.assertEqual(p.mode, "claude")
+            p.update(mode="tars", humor=60)
+            for bad in ({"mode": "hal"}, {"humor": 101}, {"honesty": "lots"}, {"humor": True}):
+                with self.assertRaises(ValueError):
+                    p.update(**bad)
+            again = Persona(cfg)
+            self.assertEqual(again.to_dict(), {"mode": "tars", "honesty": 90, "humor": 60})
+
+    def test_screen_title_follows_mode(self):
+        p = Persona(Config(persona_file=""))
+        d = Display(MockFramebuffer(), Config(), legs=FakeLegs(), persona=p, clock=Clock())
+        claude = d.render(5.0)
+        p.update(mode="tars")
+        self.assertNotEqual(claude.tobytes(), d.render(5.0).tobytes())
+
+
+class HeardServerTests(unittest.TestCase):
+    def setUp(self):
+        legs, _, _ = make_legs()
+        self.heard = Heard()
+        self.persona = Persona(Config(persona_file=""))
+        self.server = make_server(legs, "127.0.0.1", 0, heard=self.heard, persona=self.persona)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def req(self, path, body=None, ctype="application/json"):
+        r = urllib.request.Request(self.url + path, data=body, method="POST" if body is not None else "GET",
+                                   headers={"Content-Type": ctype})
+        try:
+            with urllib.request.urlopen(r) as resp:
+                return resp.status, resp.headers, resp.read()
+        except urllib.error.HTTPError as e:
+            return e.code, e.headers, e.read()
+
+    def test_typed_and_spoken_messages_round_trip(self):
+        code, headers, _ = self.req("/heard?after=0&wait=0.1")
+        self.assertEqual((code, headers["X-Heard-Id"]), (204, "0"))
+        self.assertEqual(self.req("/heard", b'{"text": "  what   do you see "}')[0], 200)
+        code, headers, body = self.req("/heard?after=0&wait=1")
+        self.assertEqual((code, headers["X-Heard-Id"], json.loads(body)), (200, "1", {"text": "what do you see"}))
+        wav = to_wav(b"\0\0" * 100)
+        self.assertEqual(self.req("/heard", wav, "audio/wav")[0], 200)
+        code, headers, body = self.req("/heard?after=1&wait=1")
+        self.assertEqual((headers["Content-Type"], body), ("audio/wav", wav))
+        for bad in (b'{"text": ""}', b'{"text": 3}'):
+            self.assertEqual(self.req("/heard", bad)[0], 400)
+        self.assertEqual(self.req("/heard", b"nope", "audio/wav")[0], 400)
+        self.assertEqual(self.req("/heard?after=x")[0], 400)
+
+    def test_persona_endpoint(self):
+        self.assertEqual(json.loads(self.req("/persona")[2])["mode"], "claude")
+        code, _, body = self.req("/persona", b'{"mode": "tars", "honesty": 80}')
+        self.assertEqual((code, json.loads(body)), (200, {"mode": "tars", "honesty": 80, "humor": 75}))
+        self.assertEqual(self.req("/persona", b'{"mode": "hal"}')[0], 400)
+        self.assertEqual(self.req("/persona", b'{"sarcasm": 50}')[0], 400)
+        self.assertEqual(json.loads(self.req("/status")[2])["persona"]["mode"], "tars")
+
+
 if __name__ == "__main__":
     unittest.main()

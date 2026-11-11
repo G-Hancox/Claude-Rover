@@ -125,12 +125,15 @@ class MockFramebuffer:
 
 
 class Display:
-    def __init__(self, fb, cfg, legs=None, speaker=None, mic=None, clock=time.monotonic):
+    def __init__(self, fb, cfg, legs=None, speaker=None, mic=None, clock=time.monotonic,
+                 persona=None, listener=None):
         self._fb = fb
         self._cfg = cfg
         self._legs = legs
         self._speaker = speaker
         self._mic = mic
+        self._persona = persona
+        self._listener = listener
         self._clock = clock
         rot = cfg.display_rotate
         self.width, self.height = ((fb.height, fb.width) if rot in (90, 270) else (fb.width, fb.height))
@@ -206,7 +209,8 @@ class Display:
         legs = self._legs.status() if self._legs else {}
         saying = getattr(self._speaker, "now_saying", None) if self._speaker else None
         last = getattr(self._speaker, "last_said", None) if self._speaker else None
-        listening = bool(self._mic and self._mic.listening)
+        listening = bool((self._mic and self._mic.listening)
+                         or (self._listener and self._listener.capturing))
         with self._lock:
             if saying:
                 self._spoken = (saying, now + SPEECH_LINGER_S)
@@ -228,8 +232,10 @@ class Display:
             state, color = "SPEAKING", FG
         else:
             state, color = "STANDING BY", DIM
+        p = self._persona.to_dict() if self._persona else {
+            "mode": "tars", "honesty": self._cfg.honesty, "humor": self._cfg.humor}
         return {"state": state, "color": color, "caption": caption, "speaking": bool(saying),
-                "listening": listening}
+                "listening": listening, "persona": p}
 
     def render(self, now=None):
         now = self._clock() if now is None else now
@@ -241,7 +247,8 @@ class Display:
         d = ImageDraw.Draw(im)
 
         # top bar
-        d.text((m, m), "TARS", font=self._f_title, fill=FG)
+        title = "TARS" if st["persona"]["mode"] == "tars" else "CLAUDE"
+        d.text((m, m), title, font=self._f_title, fill=FG)
         tw = d.textlength(st["state"], font=self._f_state)
         d.text((W - m - tw, m + int(8 * s)), st["state"], font=self._f_state, fill=st["color"])
         top = m + int(48 * s)
@@ -253,7 +260,7 @@ class Display:
         if st["caption"]:
             self._caption(d, st["caption"], m, top + int(16 * s), W - 2 * m, bottom - top - int(32 * s))
         else:
-            self._readout(d, m, top, W - 2 * m, bottom - top, s)
+            self._readout(d, m, top, W - 2 * m, bottom - top, s, st["persona"])
 
         # bottom strip
         y0 = bottom + int(12 * s)
@@ -287,8 +294,8 @@ class Display:
         for i, line in enumerate(lines):
             d.text((x, top + i * line_h), line, font=font, fill=FG)
 
-    def _readout(self, d, x, y, width, height, s):
-        rows = [("HONESTY", self._cfg.honesty), ("HUMOR", self._cfg.humor)]
+    def _readout(self, d, x, y, width, height, s, p):
+        rows = [("HONESTY", p["honesty"]), ("HUMOR", p["humor"])]
         row_h = int(70 * s)
         top = y + (height - row_h * len(rows)) // 2
         label_w = int(200 * s)

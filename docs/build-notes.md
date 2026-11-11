@@ -34,6 +34,15 @@ assembly follows the [V3 wiki guide](https://github.com/TARS-AI-Community/TARS-A
   thing: no publishing clips of it.
 - **No distance sensor.** TARS walks slowly and Claude judges distance from the camera.
 
+- **"Hey TARS" wake word** on the Pi (TARS-AI's model, our port of their detector; the
+  features match theirs exactly). The PC runs `brain/tars_voice.py`, which sends each
+  question to `claude -p` and has TARS speak the reply.
+- **Two modes, switchable on the fly:** Claude as itself, or Claude playing TARS (dry,
+  deadpan, honesty/humor settings). Honesty is bluntness, never truthfulness.
+  TARS-AI's own app uses other AI services with a TARS character card; we use Claude for both.
+- **Voice turns are locked down:** TARS's tools and web search only, no files or commands
+  on the PC.
+
 ## Safety, as built
 
 - Moves are finite and end standing. There's no "keep going" signal to lose, so dropped
@@ -49,6 +58,7 @@ assembly follows the [V3 wiki guide](https://github.com/TARS-AI-Community/TARS-A
       `move_time_scale` once it's walking.
 - [ ] Waveshare screen on the Pi 4: confirm `dtoverlay=vc4-kms-dsi-7inch` lights it up.
 - [ ] Framebuffer depth (16 or 32-bit) on the real Pi; both are supported.
+- [ ] Does the wake word work with the real mics and room? (`python3 -m tars.wake live`)
 - [ ] Turn direction on the real build: if "turn left" turns right, set `swap_turns`.
 
 ## If the upstream TARS-AI repo disappears

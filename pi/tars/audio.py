@@ -202,6 +202,8 @@ class Mic:
             raise RuntimeError("not installed: arecord")
         self._cfg = cfg
         self._lock = threading.Lock()
+        self.before_record = None   # set by the wake word listener, which shares the mic
+        self.after_record = None
 
     @property
     def listening(self):
@@ -213,8 +215,12 @@ class Mic:
         if not self._lock.acquire(blocking=False):
             raise Busy("already listening")
         try:
+            if self.before_record:
+                self.before_record()
             return self._record(seconds)
         finally:
+            if self.after_record:
+                self.after_record()
             self._lock.release()
 
     def _record(self, seconds):
@@ -260,6 +266,7 @@ class MockMic(Mic):
     def __init__(self, cfg=None, seconds_scale=1.0):
         self._cfg = cfg
         self._lock = threading.Lock()
+        self.before_record = self.after_record = None
         self._scale = seconds_scale
 
     def _record(self, seconds):

@@ -95,7 +95,7 @@ class ToolTests(unittest.TestCase):
             ("stop", {}),
             ("listen", {"seconds": 1}),
         )
-        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "show", "listen"})
+        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "show", "listen", "personality"})
         look, moves, turn, bad, say, show, stop, listen = r
         self.assertIn("Showing on screen", show.content[0].text)
         for name, res in (("look", look), ("moves", moves), ("turn", turn), ("say", say), ("show", show),

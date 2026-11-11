@@ -20,6 +20,7 @@
   button { background: #3a424a; color: #fff; }
   button:disabled { opacity: .45; }
   button.go { background: #2e6b3f; }
+  button.on { background: #2e6b8f; outline: 2px solid #8fd1ff; }
   .row { display: flex; gap: 8px; }
   .row input { flex: 1; min-width: 0; background: #22272c; color: #e8e8e8; border: 1px solid #3a424a; }
   #stop { flex: 2; padding: 16px; font-size: 1.1rem; font-weight: 700; background: #c0392b; }
@@ -63,6 +64,16 @@
 </div>
 
 <div class="panel">
+  <span class="label">Talk to Claude</span>
+  <div class="row" id="moderow" hidden>
+    <button id="mode-claude" data-mode="claude" style="flex:1">Claude</button>
+    <button id="mode-tars" data-mode="tars" style="flex:1">TARS mode</button>
+  </div>
+  <form class="row" id="talkform" hidden>
+    <input id="talktext" maxlength="500" placeholder="Ask something (the PC answers through TARS)" autocomplete="off">
+    <button>Send</button>
+  </form>
+  <span class="label" style="margin-top:6px">Speak these exact words</span>
   <form class="row" id="sayform" hidden>
     <input id="saytext" maxlength="500" placeholder="Type something for TARS to say" autocomplete="off">
     <select id="emotion" title="Emotion (TARS voice only)">
@@ -77,7 +88,8 @@
 </div>
 
 <div id="status">connecting…</div>
-<small>Keys: ↑ step · ↓ back · ← → turn · Space stop · L go limp.<br>
+<small>"Ask something" needs the voice program running on the PC (brain/Start TARS voice.bat).<br>
+Keys: ↑ step · ↓ back · ← → turn · Space stop · L go limp.<br>
 STOP finishes by standing up. Go limp drops the servos at once.</small>
 
 <script>
@@ -104,6 +116,12 @@ function show(s) {
   $('sayform').hidden = !s.speaker;
   $('listen').hidden = !s.mic;
   $('screenbox').hidden = !s.display;
+  $('moderow').hidden = !s.persona;
+  $('talkform').hidden = s.heard_latest === null || s.heard_latest === undefined;
+  if (s.persona) {
+    $('mode-claude').classList.toggle('on', s.persona.mode === 'claude');
+    $('mode-tars').classList.toggle('on', s.persona.mode === 'tars');
+  }
   if (s.display) $('screen').src = '/screen.png?' + Date.now();
   if (s.camera && !videoOn) { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
   const flags = [];
@@ -141,8 +159,18 @@ addEventListener('keydown', e => {
   if (keys[e.key]) { e.preventDefault(); if (!moving) move(keys[e.key]); }
 });
 
-$('saytext').addEventListener('focus', () => { typing = true; });
-$('saytext').addEventListener('blur', () => { typing = false; });
+for (const id of ['saytext', 'talktext']) {
+  $(id).addEventListener('focus', () => { typing = true; });
+  $(id).addEventListener('blur', () => { typing = false; });
+}
+document.querySelectorAll('button[data-mode]').forEach(b => b.addEventListener('click', () =>
+  post('/persona', {mode: b.dataset.mode}).then(poll).catch(e => flash(e.message))));
+$('talkform').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = $('talktext').value.trim();
+  if (!text) return;
+  post('/heard', {text}).then(() => { $('talktext').value = ''; }).catch(err => flash(err.message));
+});
 $('sayform').addEventListener('submit', e => {
   e.preventDefault();
   const text = $('saytext').value.trim();

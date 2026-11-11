@@ -76,6 +76,15 @@ class Config:
     honesty: int = 90               # shown on the idle screen. 90 percent, as in the film.
     humor: int = 75
 
+    # Wake word: say "Hey TARS", then talk. The PC side (brain/tars_voice.py) answers.
+    wake_enabled: bool = True
+    wake_threshold: float = 0.84    # 0-1; lower = wakes more easily (and more by mistake)
+
+    # Personality. "claude" = Claude being itself; "tars" = Claude playing TARS.
+    # Changeable on the fly (phone page, voice, or POST /persona); saved in persona_file.
+    persona: str = "claude"
+    persona_file: str = "~/.claude_tars_persona.json"
+
     host: str = "0.0.0.0"
     port: int = 8080
 
@@ -104,6 +113,10 @@ def load(path=None):
         raise ValueError('tts_engine must be "espeak" or "piper"')
     if not isinstance(cfg.voice_pace, (int, float)) or not 0.5 <= cfg.voice_pace <= 2.0:
         raise ValueError("voice_pace must be between 0.5 and 2.0 (1.0 = normal, higher = slower)")
+    if cfg.persona not in ("claude", "tars"):
+        raise ValueError('persona must be "claude" or "tars"')
+    if not 0 < cfg.wake_threshold < 1:
+        raise ValueError("wake_threshold must be between 0 and 1")
     if cfg.display_rotate not in (0, 90, 180, 270):
         raise ValueError("display_rotate must be 0, 90, 180 or 270")
     if not all(isinstance(v, int) and 0 <= v <= 100 for v in (cfg.honesty, cfg.humor)):

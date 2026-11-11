@@ -71,6 +71,28 @@ class Tars:
     def listen(self, seconds):
         return self._request("POST", "/listen", {"seconds": seconds}, timeout=seconds + 15, raw=True)
 
+    def persona(self, **changes):
+        if changes:
+            return self._request("POST", "/persona", changes)
+        return self._request("GET", "/persona")
+
+    def next_heard(self, after, wait=25):
+        """Wait for the next thing said to TARS. Returns (id, kind, payload) or (latest_id, None, None)."""
+        req = urllib.request.Request(f"{self.url}/heard?after={int(after)}&wait={wait}")
+        try:
+            with urllib.request.urlopen(req, timeout=wait + 10) as r:
+                num = int(r.headers.get("X-Heard-Id", after))
+                if r.status == 204:
+                    return num, None, None
+                body = r.read()
+                if r.headers.get("Content-Type", "").startswith("audio/"):
+                    return num, "wav", body
+                return num, "text", json.loads(body)["text"]
+        except urllib.error.HTTPError as e:
+            raise TarsError(f"TARS said no ({e.code}) to /heard") from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise TarsError(f"Can't reach TARS at {self.url} ({getattr(e, 'reason', e)}).") from None
+
     def start_move(self, name, times=1):
         return self._request("POST", "/move", {"name": name, "times": times})
 

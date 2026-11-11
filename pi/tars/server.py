@@ -11,6 +11,10 @@
   GET  /screen.png    what the front screen is showing right now
   POST /say           {"text": "...", "emotion": "joy"}   speak (emotion optional, TARS voice)
   POST /display       {"text": "...", "seconds": 15}      show text on the screen ("" clears)
+  GET  /heard?after=N&wait=25   next thing said after "Hey TARS" (audio/wav, or JSON for
+                      typed text) with its number in X-Heard-Id; 204 if nothing yet
+  POST /heard         {"text": "..."} or a WAV body: talk to TARS without the wake word
+  GET/POST /persona   {"mode": "claude"|"tars", "honesty": 0-100, "humor": 0-100}
   POST /play          WAV file as the body       play it through the speaker
   POST /listen        {"seconds": 1..30}         record the mic, returns a WAV
 
@@ -47,7 +51,8 @@ def _number(data, key, default=0.0):
     return value
 
 
-def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=None, display=None):
+def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=None, display=None,
+                heard=None, persona=None, listener=None):
     token = token if token is not None else os.environ.get("TARS_TOKEN") or None
     index = (STATIC / "index.html").read_bytes()
     stopping = threading.Event()
@@ -59,6 +64,13 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
             "speaker": speaker.status() if speaker else None,
             "mic": mic is not None,
             "display": display is not None,
+            "persona": persona.to_dict() if persona else None,
+            "wake": None if not listener else {
+                "listening_for_wake_word": listener.error is None,
+                "capturing": listener.capturing,
+                "error": listener.error,
+            },
+            "heard_latest": heard.latest_id() if heard else None,
         }
 
     moves_list = [{"name": n, "about": m["about"], "travels": n in TRAVEL} for n, m in MOVES.items()]
@@ -108,6 +120,13 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
                     self._send(200, got[1], "image/jpeg")
                 else:
                     self._send(503, {"error": "no camera"})
+            elif path == "/heard":
+                self._get_heard()
+            elif path == "/persona":
+                if persona:
+                    self._send(200, persona.to_dict())
+                else:
+                    self._send(503, {"error": "no persona"})
             elif path == "/screen.png":
                 png = display.png() if display else None
                 if png:
@@ -118,6 +137,32 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
                 self._stream()
             else:
                 self._send(404, {"error": "not found"})
+
+        def _get_heard(self):
+            if not heard:
+                return self._send(503, {"error": "not listening"})
+            from urllib.parse import parse_qs, urlsplit
+            q = parse_qs(urlsplit(self.path).query)
+            try:
+                after = int(q.get("after", ["0"])[0])
+                wait = max(0.0, min(30.0, float(q.get("wait", ["0"])[0])))
+            except ValueError:
+                return self._send(400, {"error": "after and wait must be numbers"})
+            item = heard.wait_after(after, wait)
+            if not item:
+                self.send_response(204)
+                self.send_header("X-Heard-Id", str(heard.latest_id()))
+                self.end_headers()
+                return
+            num, kind, payload = item
+            body = payload if kind == "wav" else json.dumps({"text": payload}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/wav" if kind == "wav" else "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("X-Heard-Id", str(num))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
 
         def _stream(self):
             if not camera:
@@ -148,7 +193,7 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
             route = {
                 "/stop": self._stop, "/release": self._release, "/move": self._move,
                 "/say": self._say, "/play": self._play, "/listen": self._listen,
-                "/display": self._display,
+                "/display": self._display, "/heard": self._post_heard, "/persona": self._persona,
             }.get(path)
             if not route:
                 return self._send(404, {"error": "not found"})
@@ -194,6 +239,28 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
             if emotion is not None and not isinstance(emotion, str):
                 raise BadRequest("emotion must be a string")
             self._send(200, {"saying": speaker.say(text, emotion)})
+
+        def _post_heard(self):
+            if not heard:
+                return self._send(503, {"error": "not listening"})
+            if self.headers.get("Content-Type", "").startswith("audio/"):
+                body = self._body(MAX_WAV)
+                if body[:4] != b"RIFF":
+                    raise BadRequest("not a WAV file")
+                return self._send(200, {"id": heard.add(body, "wav")})
+            text = self._json().get("text", "")
+            if not isinstance(text, str) or not text.strip():
+                raise BadRequest("text must be a non-empty string")
+            self._send(200, {"id": heard.add(" ".join(text.split())[:500], "text")})
+
+        def _persona(self):
+            if not persona:
+                return self._send(503, {"error": "no persona"})
+            data = self._json()
+            unknown = set(data) - {"mode", "honesty", "humor"}
+            if unknown:
+                raise BadRequest(f"unknown setting: {', '.join(sorted(unknown))}")
+            self._send(200, persona.update(**data))
 
         def _display(self):
             if not display:

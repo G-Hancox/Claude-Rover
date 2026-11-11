@@ -99,7 +99,7 @@ sudo sed -i 's/$/ consoleblank=0 vt.global_cursor_default=0/' /boot/firmware/cmd
 sudo reboot
 ```
 
-When TARS is running, the screen shows:
+When TARS is running, the screen's title says **CLAUDE** or **TARS** (the current mode), and it shows:
 
 - **Standing by:** an HONESTY 90% / HUMOR 75% readout, and the address of the control
   page (handy for finding TARS on your Wi-Fi)
@@ -140,6 +140,24 @@ not in this repo.
 
 If the voice can't load (piper-tts not installed, file missing), TARS says why at startup
 and carries on without a speaker. Set `"tts_engine": "espeak"` to go back to the robotic voice.
+
+## "Hey TARS"
+
+The wake word runs on the Pi and starts by itself when TARS starts (once the USB sound
+card is plugged in). Say **"Hey TARS"**, wait for the beep, and talk; TARS records until
+you stop. The PC answers, using `brain/Start TARS voice.bat` (see `brain/README.md`).
+
+It doesn't listen while TARS is talking or moving, so it won't wake itself up.
+
+Check it once the sound card is in:
+
+```bash
+~/tars-venv/bin/python3 -m tars.wake test --config tars.json   # synthetic voices: "Hey TARS" should score highest
+~/tars-venv/bin/python3 -m tars.wake live --config tars.json   # live meter: say "Hey TARS" a few times
+```
+
+If it wakes too easily (or not at all), lower or raise `wake_threshold` (default 0.84).
+The model is the TARS-AI community's (`tars/wakeword/`, CC-BY-NC).
 
 ## Fitting the servo horns (guide torso steps 7–8)
 
@@ -212,7 +230,10 @@ Anything not in your file keeps its default. All settings are in
 | `piper_speaker` | `"neutral"` | Default emotion |
 | `voice_pace` | `1.3` | TARS voice speed: 1.0 = as trained, higher = slower. Same for every emotion |
 | `display_rotate` | `0` | Turn the screen picture 90, 180 or 270 |
-| `honesty`, `humor` | `90`, `75` | The idle screen readout |
+| `honesty`, `humor` | `90`, `75` | TARS's settings, shown on the idle screen (also changeable by voice) |
+| `persona` | `"claude"` | Starting mode: `"claude"` or `"tars"` (switchable on the fly) |
+| `wake_enabled` | `true` | Listen for "Hey TARS" |
+| `wake_threshold` | `0.84` | Lower = wakes more easily |
 | `camera_enabled`, `speaker_enabled`, `mic_enabled`, `display_enabled` | `true` | Turn a part off |
 
 ## How moves behave
@@ -241,6 +262,9 @@ Anything not in your file keeps its default. All settings are in
 | `GET /screen.png` | | What the front screen shows |
 | `POST /say` | `{"text": "...", "emotion": "joy"}` | Speak (up to 500 characters; emotion optional; returns at once) |
 | `POST /display` | `{"text": "...", "seconds": 15}` | Show text on the screen (`""` clears) |
+| `GET /heard?after=N&wait=25` | | Next thing said after "Hey TARS" (WAV) or typed (JSON); 204 if none |
+| `POST /heard` | `{"text": "..."}` or a WAV | Talk to TARS without the wake word |
+| `GET`/`POST /persona` | `{"mode": "tars", "humor": 60}` | Read or change the mode and settings |
 | `POST /play` | a WAV file | Play it through the speaker |
 | `POST /listen` | `{"seconds": 1..30}` | Record the mics; returns a 16 kHz mono WAV |
 

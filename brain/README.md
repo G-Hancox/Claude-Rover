@@ -1,7 +1,7 @@
 # brain/ — runs on your PC
 
 This connects Claude to TARS using **Claude Code on your existing subscription**, so
-there's no separate API bill. It gives Claude seven tools:
+there's no separate API bill. It gives Claude eight tools:
 
 | Tool | What it does |
 |---|---|
@@ -11,12 +11,14 @@ there's no separate API bill. It gives Claude seven tools:
 | `stop` | Cuts a move short; TARS eases back to standing |
 | `say` | Speaks through TARS's speaker (with an emotion, in the TARS voice) and puts the words on its screen |
 | `show` | Puts text on TARS's front screen without speaking |
+| `personality` | Reads or switches the mode (Claude or TARS) and TARS's honesty/humor settings |
 | `listen` | Records TARS's mics and turns the speech into text (on this PC) |
 
 > Tested end to end against a **simulated** TARS using the same protocol Claude Code
 > speaks. Not yet tried inside Claude Code itself, and not yet with the real robot.
 > Speech-to-text (`faster-whisper`) is written but was not installed where this was
-> tested, so `listen` is the least proven tool.
+> tested, so `listen` and spoken questions are the least proven parts. The voice program
+> was tested with typed questions and a stand-in for Claude Code.
 
 ## What to expect
 
@@ -59,6 +61,36 @@ shortcut to it onto your desktop). It checks TARS is reachable, then opens Claud
 If the tools don't show up, type `/mcp` inside Claude Code to see the server's status. On
 Mac or Linux, change `"command": "python"` to `"python3"` in `.mcp.json`.
 
+## Hands-free: "Hey TARS"
+
+**Double-click `Start TARS voice.bat`** and leave the window open. Then just say
+**"Hey TARS"**, wait for the beep, and talk. TARS answers out loud. You can also type
+questions into **Ask something** on the phone page.
+
+Needs speech-to-text on this PC, once: `pip install faster-whisper` (it downloads a
+~150 MB speech model the first time).
+
+Things it handles instantly, without asking Claude:
+
+| Say | What happens |
+|---|---|
+| "Stop" / "Freeze" | Stops moving right away |
+| "TARS mode" / "Claude mode" | Switches personality (also a button on the phone page) |
+| "Set humor to 60" / "Set honesty to 95" | Changes TARS's settings (shown on its screen) |
+| "New conversation" / "Start over" | Forgets the conversation so far |
+
+**The two modes.** In **Claude mode** you're talking to Claude, as itself. In **TARS mode**
+it's still Claude underneath, playing TARS: dry, deadpan, short answers, jokes as often as
+the humor setting says. The honesty setting changes how blunt TARS is, never whether it
+tells the truth. The screen's title shows which mode is on. Switching starts a fresh
+conversation.
+
+**How it works:** each question runs `claude -p` in this folder with TARS's tools, and
+answers stay in one conversation until you pause for 10 minutes. Voice turns are locked
+down: they can look, move, show things on the screen and search the web, but can't read
+or change files or run commands on this PC (anyone in the room can talk to TARS).
+Every question uses your Claude plan, and answers take a few seconds.
+
 ## Try it with no robot
 
 On the PC, in one window: `cd pi` then `python -m tars --mock`.
@@ -69,6 +101,7 @@ Claude will "see" a test pattern and walk a TARS that isn't there. Open
 ## Files
 
 - `tars_mcp.py` — the tools (an MCP server that Claude Code starts by itself)
+- `tars_voice.py` — the hands-free "Hey TARS" program (`Start TARS voice.bat`)
 - `tars_client.py` — plain Python wrapper around TARS's web API
 - `.mcp.json` — tells Claude Code how to start the tools
 - `CLAUDE.md` — moving and talking rules Claude reads when started in this folder
