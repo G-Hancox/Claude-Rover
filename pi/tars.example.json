@@ -19,10 +19,10 @@
   "tts_engine": "espeak",
   "piper_model": "~/tars-voice/TARS.onnx",
   "piper_speaker": "0",
-  "voice_pace": 1.3,
+  "voice_pace": 1.45,
   "voice_steadiness": 0.6,
   "voice_emotions": false,
-  "voice_sentence_pause": 0.5,
+  "voice_sentence_pause": 0.9,
 
   "display_rotate": 0,
   "audio_out_device": "default",

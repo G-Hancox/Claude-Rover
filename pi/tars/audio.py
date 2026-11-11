@@ -92,13 +92,16 @@ class PiperVoiceEngine:
     def wav(self, text, emotion=None):
         """Speak text. With sentence_pause, each sentence is made separately and joined with
         a gap, the way TARS leaves room between lines."""
+        pause = self.sentence_pause
+        if emotion and emotion != "neutral":
+            pause = min(pause, 0.5)   # livelier replies: he talks a little quicker
         parts = [text]
-        if self.sentence_pause:
+        if pause:
             import re
             parts = [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p] or [text]
         if len(parts) == 1:
             return self._wav_one(text, emotion)
-        gap = b"\0\0" * int(self.sample_rate * self.sentence_pause)
+        gap = b"\0\0" * int(self.sample_rate * pause)
         frames, params = [], None
         for part in parts:
             with wave.open(io.BytesIO(self._wav_one(part, emotion))) as w:

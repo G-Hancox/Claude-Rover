@@ -556,6 +556,12 @@ class PiperTests(unittest.TestCase):
         self.assertEqual([c[1] for c in calls if c[0] == "say"], ["Workshop secure.", "All good!", "Really?"])
         with wave.open(io.BytesIO(data)) as w:
             self.assertEqual(w.getnframes(), 3 * 10 + 2 * int(22050 * 0.5))
+        with tempfile.TemporaryDirectory() as d:
+            eng = PiperVoiceEngine(self.voice_files(d), "neutral", sentence_pause=0.9)
+            calm = eng.wav("One. Two.")
+            lively = eng.wav("One. Two.", "joy")
+        with wave.open(io.BytesIO(calm)) as a, wave.open(io.BytesIO(lively)) as b:
+            self.assertEqual(a.getnframes() - b.getnframes(), int(22050 * 0.9) - int(22050 * 0.5))
 
     def test_missing_voice_explains_how_to_get_it(self):
         from tars.audio import PiperVoiceEngine

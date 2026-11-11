@@ -68,10 +68,10 @@ class Config:
     # eight by ear: 0 and 2 sound most like TARS (the file labels them "anger" and "fear",
     # but the labels look mixed up; TARS-AI's own config numbers them differently too).
     piper_speaker: str = "0"
-    voice_pace: float = 1.3         # TARS voice speed: 1.0 = as trained, higher = slower
+    voice_pace: float = 1.45        # TARS voice speed: 1.0 = as trained, higher = slower
     voice_steadiness: float = 0.6   # 0 = Piper's natural variation, 1 = every line delivered alike
     voice_emotions: bool = False    # true = use the emotion voices (they drift from TARS's sound)
-    voice_sentence_pause: float = 0.5   # seconds of quiet between sentences
+    voice_sentence_pause: float = 0.9   # seconds between sentences (0.5 on emotional replies)
     say_max_chars: int = 500
 
     # Screen (5" DSI on the front). Drawn straight to the Linux framebuffer: no desktop needed.
