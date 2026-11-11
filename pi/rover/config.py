@@ -42,6 +42,38 @@ class Config:
     camera_hflip: bool = False
     camera_vflip: bool = False
 
+    # Camera pan and tilt (two more servos on the PCA9685).
+    head_enabled: bool = True
+    pan_channel: int = 2
+    tilt_channel: int = 3
+    pan_left_us: int = 1100
+    pan_center_us: int = 1500
+    pan_right_us: int = 1900
+    tilt_down_us: int = 1200
+    tilt_center_us: int = 1500
+    tilt_up_us: int = 1800
+    head_speed_per_s: float = 1.5  # how fast the head may swing, in full sweeps per second
+
+    # Forward distance sensor: "none", "hcsr04" (ultrasonic) or "vl53l1x" (laser).
+    distance_sensor: str = "none"
+    distance_stop_m: float = 0.40   # closer than this: forward throttle is refused
+    distance_clear_m: float = 0.55  # farther than this again: forward is allowed
+    distance_hz: float = 15.0
+    hcsr04_trigger_pin: int = 23    # GPIO numbers, not header pin numbers
+    hcsr04_echo_pin: int = 24
+    vl53l1x_address: int = 0x29
+
+    # Voice out (speaker) and in (mic), through ALSA.
+    speaker_enabled: bool = True
+    mic_enabled: bool = True
+    audio_out_device: str = "default"
+    audio_in_device: str = "default"
+    tts_engine: str = "espeak"      # "espeak" or "piper"
+    piper_bin: str = "piper"
+    piper_model: str = ""           # path to a Piper .onnx voice
+    piper_sample_rate: int = 22050
+    say_max_chars: int = 500
+
     loop_hz: float = 50.0
     host: str = "0.0.0.0"
     port: int = 8080
@@ -59,4 +91,10 @@ def load(path=None):
             setattr(cfg, key, value)
     if not 0 <= cfg.max_forward <= 1 or not 0 <= cfg.max_reverse <= 1:
         raise ValueError("max_forward and max_reverse must be between 0 and 1")
+    if cfg.distance_sensor not in ("none", "hcsr04", "vl53l1x"):
+        raise ValueError('distance_sensor must be "none", "hcsr04" or "vl53l1x"')
+    if cfg.distance_clear_m < cfg.distance_stop_m:
+        raise ValueError("distance_clear_m must not be smaller than distance_stop_m")
+    if cfg.tts_engine not in ("espeak", "piper"):
+        raise ValueError('tts_engine must be "espeak" or "piper"')
     return cfg

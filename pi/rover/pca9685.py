@@ -1,4 +1,5 @@
 """Minimal PCA9685 driver (16-channel PWM board over I2C), plus a mock for testing off the Pi."""
+import threading
 
 MODE1 = 0x00
 PRESCALE = 0xFE
@@ -15,6 +16,7 @@ class PCA9685:
 
         self._bus = SMBus(bus)
         self._addr = address
+        self._lock = threading.Lock()
         prescale = max(3, min(255, round(osc_hz / (4096 * freq_hz)) - 1))
         self.freq_hz = osc_hz / (4096 * (prescale + 1))
 
@@ -37,7 +39,8 @@ class PCA9685:
     def _write(self, channel, data):
         if not 0 <= channel <= 15:
             raise ValueError("channel must be 0-15")
-        self._bus.write_i2c_block_data(self._addr, LED0_ON_L + 4 * channel, data)
+        with self._lock:
+            self._bus.write_i2c_block_data(self._addr, LED0_ON_L + 4 * channel, data)
 
     def close(self):
         self._bus.close()

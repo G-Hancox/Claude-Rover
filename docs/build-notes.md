@@ -29,6 +29,8 @@
 ## Open questions
 
 - [x] Motor turn count: **12T** → keep it, run drive on 2S LiPo (see Power). Throttle limit in software anyway.
+- [ ] Which distance sensor: HC-SR04 (needs a 1kΩ + 2kΩ divider on Echo) or VL53L1X
+- [ ] How the PC brain reaches Claude: API key or Claude Code
 - [ ] Check LiPo packs: no puffing, ≥3.0V per cell, balance charge before use.
 - [ ] Does the existing buck converter pass the load test?
 
@@ -46,12 +48,18 @@
   keep the speaker away from the drive motor's gear whine.
 - **12V on the ESC.** Many RC cars are built for 7.2V packs.
 
-## Software plan (rough)
+## Software
 
-- `pi/` — Python on Pi OS Lite: PCA9685 drive/steering/pan-tilt, camera stream,
-  distance-sensor safety stop, audio in/out, all exposed over the network to the PC.
-- `brain/` — PC side: speech-to-text (Whisper or Vosk), Claude, text-to-speech (Piper),
-  camera viewer and drive controls.
+- `pi/` — **written, untested on hardware.** Python on Pi OS Lite: drive, steering, camera
+  stream, pan/tilt, obstacle stop, speaker and mic, all behind one small web API. Setup,
+  wiring and the API are in [`pi/README.md`](../pi/README.md).
+  - PCA9685 channels: 0 steering, 1 ESC, 2 pan, 3 tilt.
+  - Voice out runs on the Pi (espeak by default, Piper optional). Voice in: the Pi records
+    and hands the PC a WAV; speech-to-text happens on the PC.
+- `brain/` — **not started.** PC side: speech-to-text, Claude, and the loop that looks
+  through `/snapshot.jpg`, listens through `/listen`, talks through `/say` and drives.
+  Open decision first: how the PC reaches Claude (paid API key vs. Claude Code on the
+  subscription).
 
 ## Later: TARS body
 

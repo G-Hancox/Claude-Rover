@@ -5,95 +5,171 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
 <title>Claude Rover</title>
 <style>
+  * { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; background: #14171a; color: #e8e8e8; margin: 0;
          display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; }
   h1 { font-size: 1.2rem; margin: 0; }
   #video { width: min(92vw, 640px); border-radius: 12px; background: #000; display: none; }
-  #pad { width: min(80vw, 340px); aspect-ratio: 1; background: #22272c; border: 2px solid #3a424a;
-         border-radius: 16px; position: relative; touch-action: none; }
-  #pad::before, #pad::after { content: ""; position: absolute; background: #3a424a; }
-  #pad::before { left: 50%; top: 0; bottom: 0; width: 1px; }
-  #pad::after { top: 50%; left: 0; right: 0; height: 1px; }
-  #dot { width: 44px; height: 44px; border-radius: 50%; background: #8fd14f; position: absolute;
-         left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
-  #stop { width: min(80vw, 340px); padding: 18px; font-size: 1.2rem; font-weight: 700; color: #fff;
-          background: #c0392b; border: 0; border-radius: 12px; }
-  #status { font-family: ui-monospace, monospace; font-size: .9rem; text-align: center; min-height: 3em; }
+  #pads { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; align-items: flex-end; }
+  .padbox { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .padbox span { font-size: .8rem; color: #9aa4ad; text-transform: uppercase; letter-spacing: .08em; }
+  .pad { background: #22272c; border: 2px solid #3a424a; border-radius: 16px; position: relative;
+         touch-action: none; aspect-ratio: 1; }
+  .pad::before, .pad::after { content: ""; position: absolute; background: #3a424a; }
+  .pad::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+  .pad::after { top: 50%; left: 0; right: 0; height: 1px; }
+  #pad { width: min(80vw, 300px); }
+  #lookpad { width: min(50vw, 180px); }
+  .dot { width: 40px; height: 40px; border-radius: 50%; position: absolute; left: 50%; top: 50%;
+         transform: translate(-50%, -50%); pointer-events: none; }
+  #dot { background: #8fd14f; }
+  #lookdot { background: #5dade2; width: 30px; height: 30px; }
+  button, input { font: inherit; border-radius: 10px; border: 0; padding: 12px 14px; }
+  button { background: #3a424a; color: #fff; }
+  button:disabled { opacity: .5; }
+  #stop { width: min(92vw, 500px); padding: 18px; font-size: 1.2rem; font-weight: 700; background: #c0392b; }
+  .row { display: flex; gap: 8px; width: min(92vw, 500px); }
+  .row input { flex: 1; min-width: 0; background: #22272c; color: #e8e8e8; border: 1px solid #3a424a; }
+  #status { font-family: ui-monospace, monospace; font-size: .9rem; text-align: center; min-height: 4em; }
   .warn { color: #f5b041; }
-  small { color: #9aa4ad; }
+  small { color: #9aa4ad; text-align: center; }
+  [hidden] { display: none !important; }
 </style>
 </head>
 <body>
 <h1>Claude Rover</h1>
 <img id="video" alt="Rover camera">
-<div id="pad"><div id="dot"></div></div>
+<div id="pads">
+  <div class="padbox"><div id="pad" class="pad"><div id="dot" class="dot"></div></div><span>Drive</span></div>
+  <div class="padbox" id="lookbox" hidden>
+    <div id="lookpad" class="pad"><div id="lookdot" class="dot"></div></div>
+    <button id="center">Centre camera</button>
+  </div>
+</div>
 <button id="stop">STOP</button>
+<form class="row" id="sayform" hidden>
+  <input id="saytext" maxlength="500" placeholder="Type something for the rover to say" autocomplete="off">
+  <button>Say</button>
+</form>
+<div class="row" id="listenrow" hidden>
+  <button id="listen" style="flex:1">Listen for 5 seconds and play it back</button>
+</div>
+<audio id="playback" hidden></audio>
 <div id="status">connecting…</div>
-<small>Drag the pad, or use the arrow keys / WASD. Space = stop.</small>
+<small>Drive: drag the green pad, or arrow keys / WASD. Space = stop.<br>
+Camera: drag the blue pad, or I J K L. C = centre.</small>
 <script>
-const pad = document.getElementById('pad'), dot = document.getElementById('dot');
-const statusEl = document.getElementById('status');
+const $ = id => document.getElementById(id);
+const pad = $('pad'), dot = $('dot'), lookpad = $('lookpad'), lookdot = $('lookdot');
+const statusEl = $('status'), video = $('video');
 let throttle = 0, steering = 0, active = false;
-const keys = new Set();
+let pan = 0, tilt = 0, lookDirty = false, lookDrag = false;
+let videoOn = false, typing = false;
+const keys = new Set(), lookKeys = new Set();
+const clamp = v => Math.max(-1, Math.min(1, v));
 
 function post(path, body) {
   return fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
-                      body: JSON.stringify(body || {})}).then(r => r.json()).then(show).catch(offline);
+                      body: JSON.stringify(body || {})}).then(r => r.json());
 }
 function show(s) {
+  if (s.throttle === undefined) return;
+  $('lookbox').hidden = !s.head;
+  $('sayform').hidden = !s.speaker;
+  $('listenrow').hidden = !s.mic;
+  if (s.camera && !videoOn) { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
   const flags = [];
   if (!s.armed) flags.push('arming…');
-  if (s.failsafe) flags.push('idle');
-  if (s.forward_blocked) flags.push('obstacle ahead');
-  statusEl.innerHTML = `throttle ${s.throttle.toFixed(2)} &nbsp; steering ${s.steering.toFixed(2)}<br>` +
-    `cap ${Math.round(s.max_forward * 100)}% fwd / ${Math.round(s.max_reverse * 100)}% rev` +
+  if (s.distance && s.distance.fault) flags.push('distance sensor fault — forward blocked');
+  else if (s.forward_blocked) flags.push('obstacle ahead — forward blocked');
+  if (s.speaker && s.speaker.speaking) flags.push('speaking');
+  if (s.speaker && s.speaker.error) flags.push('speaker error');
+  let line2 = `cap ${Math.round(s.max_forward * 100)}% fwd / ${Math.round(s.max_reverse * 100)}% rev`;
+  if (s.distance) line2 += ' &nbsp; ahead ' + (s.distance.distance_m === null ? 'clear' : s.distance.distance_m.toFixed(2) + ' m');
+  statusEl.innerHTML = `throttle ${s.throttle.toFixed(2)} &nbsp; steering ${s.steering.toFixed(2)}<br>${line2}` +
     (flags.length ? `<br><span class="warn">${flags.join(' · ')}</span>` : '');
 }
-function offline() { statusEl.innerHTML = '<span class="warn">no connection to rover</span>'; }
-function setDot() {
-  dot.style.left = (50 + steering * 50) + '%';
-  dot.style.top = (50 - throttle * 50) + '%';
-}
-function stop() { active = false; throttle = steering = 0; keys.clear(); setDot(); post('/stop'); }
+function offline() { videoOn = false; statusEl.innerHTML = '<span class="warn">no connection to rover</span>'; }
+video.addEventListener('error', () => { videoOn = false; video.style.display = 'none'; });
 
-function fromPointer(e) {
-  const r = pad.getBoundingClientRect();
-  steering = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
-  throttle = Math.max(-1, Math.min(1, 1 - ((e.clientY - r.top) / r.height) * 2));
-  setDot();
+function place(el, x, y) { el.style.left = (50 + x * 50) + '%'; el.style.top = (50 - y * 50) + '%'; }
+function point(el, e) {
+  const r = el.getBoundingClientRect();
+  return [clamp(((e.clientX - r.left) / r.width) * 2 - 1), clamp(1 - ((e.clientY - r.top) / r.height) * 2)];
 }
-pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); active = true; fromPointer(e); });
-pad.addEventListener('pointermove', e => { if (active && keys.size === 0) fromPointer(e); });
+
+// ---- drive: spring-loaded, letting go stops ----
+function stop() {
+  active = false; throttle = steering = 0; keys.clear(); place(dot, 0, 0);
+  post('/stop').then(show).catch(offline);
+}
+pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); active = true;
+  [steering, throttle] = point(pad, e); place(dot, steering, throttle); });
+pad.addEventListener('pointermove', e => { if (active && keys.size === 0) {
+  [steering, throttle] = point(pad, e); place(dot, steering, throttle); } });
 pad.addEventListener('pointerup', stop);
 pad.addEventListener('pointercancel', stop);
-document.getElementById('stop').addEventListener('click', stop);
+$('stop').addEventListener('click', stop);
 
+// ---- camera: stays where you leave it ----
+function setLook(p, t) { pan = clamp(p); tilt = clamp(t); lookDirty = true; place(lookdot, pan, tilt); }
+lookpad.addEventListener('pointerdown', e => { lookpad.setPointerCapture(e.pointerId); lookDrag = true; setLook(...point(lookpad, e)); });
+lookpad.addEventListener('pointermove', e => { if (lookDrag) setLook(...point(lookpad, e)); });
+lookpad.addEventListener('pointerup', () => { lookDrag = false; });
+lookpad.addEventListener('pointercancel', () => { lookDrag = false; });
+$('center').addEventListener('click', () => setLook(0, 0));
+
+// ---- keyboard ----
 const keymap = {ArrowUp: 'f', w: 'f', ArrowDown: 'b', s: 'b', ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r'};
+const lookmap = {i: 'u', k: 'd', j: 'l', l: 'r'};
 function fromKeys() {
   throttle = (keys.has('f') ? 1 : 0) - (keys.has('b') ? 1 : 0);
   steering = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0);
-  active = keys.size > 0; setDot();
-  if (!active) post('/stop');
+  active = keys.size > 0; place(dot, steering, throttle);
+  if (!active) post('/stop').then(show).catch(offline);
 }
 addEventListener('keydown', e => {
-  if (e.key === ' ') { e.preventDefault(); return stop(); }
-  const k = keymap[e.key]; if (k) { e.preventDefault(); keys.add(k); fromKeys(); }
+  if (typing) return;
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (key === ' ') { e.preventDefault(); return stop(); }
+  if (key === 'c') return setLook(0, 0);
+  if (keymap[key]) { e.preventDefault(); keys.add(keymap[key]); fromKeys(); }
+  if (lookmap[key]) lookKeys.add(lookmap[key]);
 });
-addEventListener('keyup', e => { const k = keymap[e.key]; if (k) { keys.delete(k); fromKeys(); } });
-addEventListener('blur', stop);
-document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+addEventListener('keyup', e => {
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (keymap[key] && keys.delete(keymap[key])) fromKeys();
+  if (lookmap[key]) lookKeys.delete(lookmap[key]);
+});
+addEventListener('blur', () => { lookKeys.clear(); if (active) stop(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden && active) stop(); });
 
-const video = document.getElementById('video');
-let videoOn = false;
-function startVideo() { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
-video.addEventListener('error', () => { videoOn = false; video.style.display = 'none'; });
-function checkVideo(s) { if (s.camera && !videoOn) startVideo(); return s; }
+// ---- voice ----
+$('saytext').addEventListener('focus', () => { typing = true; if (active) stop(); });
+$('saytext').addEventListener('blur', () => { typing = false; });
+$('sayform').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = $('saytext').value.trim();
+  if (!text) return;
+  post('/say', {text}).then(r => { if (!r.error) $('saytext').value = ''; else alert(r.error); }).catch(offline);
+});
+$('listen').addEventListener('click', () => {
+  const b = $('listen'), label = b.textContent;
+  b.disabled = true; b.textContent = 'Listening…';
+  fetch('/listen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"seconds": 5}'})
+    .then(r => r.ok ? r.blob() : r.json().then(j => { throw new Error(j.error); }))
+    .then(blob => { const a = $('playback'); a.src = URL.createObjectURL(blob); return a.play(); })
+    .catch(err => alert('Listen failed: ' + err.message))
+    .finally(() => { b.disabled = false; b.textContent = label; });
+});
 
-// The rover stops by itself if these stop arriving.
+// ---- heartbeat: the rover stops by itself if drive commands stop arriving ----
 setInterval(() => {
-  if (active) post('/drive', {throttle, steering});
-  else fetch('/status').then(r => r.json()).then(checkVideo).then(show)
-    .catch(() => { videoOn = false; offline(); });
+  if (lookKeys.size) setLook(pan + ((lookKeys.has('r') ? 1 : 0) - (lookKeys.has('l') ? 1 : 0)) * 0.08,
+                             tilt + ((lookKeys.has('u') ? 1 : 0) - (lookKeys.has('d') ? 1 : 0)) * 0.08);
+  if (lookDirty) { lookDirty = false; post('/look', {pan, tilt}).catch(() => {}); }
+  if (active) post('/drive', {throttle, steering}).then(show).catch(offline);
+  else fetch('/status').then(r => r.json()).then(show).catch(offline);
 }, 100);
 </script>
 </body>

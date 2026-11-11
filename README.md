@@ -5,7 +5,7 @@ A Raspberry Pi camera rover that Claude can drive, see through, and talk from.
 Built on a donor RC car chassis with a 3D-printed body, powered by a Milwaukee M12 battery.
 The Pi handles the hardware; a PC runs the "brain" (speech, vision, and the connection to Claude).
 
-> Status: **drive and camera code written, untested on hardware** — waiting on parts. See [pi/](pi/README.md).
+> Status: **Pi-side code written (drive, camera, pan/tilt, obstacle stop, voice), untested on hardware** — waiting on parts. See [pi/](pi/README.md).
 
 ## How it fits together
 
