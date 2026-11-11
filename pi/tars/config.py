@@ -62,7 +62,7 @@ class Config:
     tts_engine: str = "espeak"      # "espeak", or "piper" for the TARS voice
     piper_model: str = "~/tars-voice/TARS.onnx"   # get it with: python3 -m tars.voice download
     piper_speaker: str = "neutral"  # default emotion on multi-speaker voices like TARS
-    voice_pace: float = 1.15        # TARS voice speed: 1.0 = as trained, higher = slower
+    voice_pace: float = 1.3         # TARS voice speed: 1.0 = as trained, higher = slower
     say_max_chars: int = 500
 
     # Screen (5" DSI on the front). Drawn straight to the Linux framebuffer: no desktop needed.
