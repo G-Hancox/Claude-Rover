@@ -8,7 +8,9 @@
   POST /move          {"name": "step_forward", "times": 1}   starts a move, returns at once
   POST /stop          cut the current move short and return to standing
   POST /release       let the leg servos go limp now
-  POST /say           {"text": "..."}            speak through the speaker
+  GET  /screen.png    what the front screen is showing right now
+  POST /say           {"text": "...", "emotion": "joy"}   speak (emotion optional, TARS voice)
+  POST /display       {"text": "...", "seconds": 15}      show text on the screen ("" clears)
   POST /play          WAV file as the body       play it through the speaker
   POST /listen        {"seconds": 1..30}         record the mic, returns a WAV
 
@@ -45,7 +47,7 @@ def _number(data, key, default=0.0):
     return value
 
 
-def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=None):
+def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=None, display=None):
     token = token if token is not None else os.environ.get("TARS_TOKEN") or None
     index = (STATIC / "index.html").read_bytes()
     stopping = threading.Event()
@@ -56,6 +58,7 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
             "camera": camera is not None,
             "speaker": speaker.status() if speaker else None,
             "mic": mic is not None,
+            "display": display is not None,
         }
 
     moves_list = [{"name": n, "about": m["about"], "travels": n in TRAVEL} for n, m in MOVES.items()]
@@ -105,6 +108,12 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
                     self._send(200, got[1], "image/jpeg")
                 else:
                     self._send(503, {"error": "no camera"})
+            elif path == "/screen.png":
+                png = display.png() if display else None
+                if png:
+                    self._send(200, png, "image/png")
+                else:
+                    self._send(503, {"error": "no screen"})
             elif path == "/stream.mjpg":
                 self._stream()
             else:
@@ -139,6 +148,7 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
             route = {
                 "/stop": self._stop, "/release": self._release, "/move": self._move,
                 "/say": self._say, "/play": self._play, "/listen": self._listen,
+                "/display": self._display,
             }.get(path)
             if not route:
                 return self._send(404, {"error": "not found"})
@@ -177,10 +187,26 @@ def make_server(legs, host, port, token=None, camera=None, speaker=None, mic=Non
         def _say(self):
             if not speaker:
                 return self._send(503, {"error": "no speaker"})
-            text = self._json().get("text", "")
+            data = self._json()
+            text, emotion = data.get("text", ""), data.get("emotion")
             if not isinstance(text, str):
                 raise BadRequest("text must be a string")
-            self._send(200, {"saying": speaker.say(text)})
+            if emotion is not None and not isinstance(emotion, str):
+                raise BadRequest("emotion must be a string")
+            self._send(200, {"saying": speaker.say(text, emotion)})
+
+        def _display(self):
+            if not display:
+                return self._send(503, {"error": "no screen"})
+            data = self._json()
+            text = data.get("text", "")
+            if not isinstance(text, str):
+                raise BadRequest("text must be a string")
+            seconds = _number(data, "seconds", 15)
+            if not 1 <= seconds <= 600:
+                raise BadRequest("seconds must be 1 to 600")
+            display.show_text(text, seconds)
+            self._send(200, {"showing": text})
 
         def _play(self):
             if not speaker:

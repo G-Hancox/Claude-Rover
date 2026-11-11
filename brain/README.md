@@ -1,7 +1,7 @@
 # brain/ — runs on your PC
 
 This connects Claude to TARS using **Claude Code on your existing subscription**, so
-there's no separate API bill. It gives Claude six tools:
+there's no separate API bill. It gives Claude seven tools:
 
 | Tool | What it does |
 |---|---|
@@ -9,7 +9,8 @@ there's no separate API bill. It gives Claude six tools:
 | `move` | Does a move (step, turn, bow, laugh...) and waits for it to finish |
 | `list_moves` | Lists the moves with a line about each |
 | `stop` | Cuts a move short; TARS eases back to standing |
-| `say` | Speaks through TARS's speaker |
+| `say` | Speaks through TARS's speaker (with an emotion, in the TARS voice) and puts the words on its screen |
+| `show` | Puts text on TARS's front screen without speaking |
 | `listen` | Records TARS's mics and turns the speech into text (on this PC) |
 
 > Tested end to end against a **simulated** TARS using the same protocol Claude Code

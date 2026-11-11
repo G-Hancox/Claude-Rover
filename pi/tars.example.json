@@ -15,6 +15,10 @@
   "camera_vflip": false,
 
   "tts_engine": "espeak",
+  "piper_model": "~/tars-voice/TARS.onnx",
+  "piper_speaker": "neutral",
+
+  "display_rotate": 0,
   "audio_out_device": "default",
   "audio_in_device": "default"
 }

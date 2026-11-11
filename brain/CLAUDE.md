@@ -22,6 +22,10 @@ ears. G built it so you could explore and so the two of you could talk through i
 
 - When G speaks to you through TARS, answer with `say()` and keep it short: spoken replies
   of a sentence or two work best. Put anything long in the chat instead.
+- What you `say()` also appears on the front screen. Use `show()` for things that read
+  better than they sound: a list, a number, a spelling.
+- `say()` takes an emotion (joy, curiosity, surprise...) that changes how the TARS voice
+  sounds. Use neutral most of the time; save the others for when they really fit.
 - Don't `listen()` during a move; servo noise drowns out speech.
 - If G asks for "voice mode", loop: `listen()`, then `say()` your reply, until G says stop
   or types in the chat.

@@ -90,13 +90,15 @@ class ToolTests(unittest.TestCase):
             ("list_moves", {}),
             ("move", {"name": "turn_left"}),
             ("move", {"name": "moonwalk"}),
-            ("say", {"text": "Honesty setting ninety percent."}),
+            ("say", {"text": "Honesty setting ninety percent.", "emotion": "joy"}),
+            ("show", {"text": "Shopping list: servos, screws", "seconds": 5}),
             ("stop", {}),
             ("listen", {"seconds": 1}),
         )
-        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "listen"})
-        look, moves, turn, bad, say, stop, listen = r
-        for name, res in (("look", look), ("moves", moves), ("turn", turn), ("say", say),
+        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "show", "listen"})
+        look, moves, turn, bad, say, show, stop, listen = r
+        self.assertIn("Showing on screen", show.content[0].text)
+        for name, res in (("look", look), ("moves", moves), ("turn", turn), ("say", say), ("show", show),
                           ("stop", stop), ("listen", listen)):
             self.assertFalse(is_error(res), name)
         self.assertTrue(is_error(bad))

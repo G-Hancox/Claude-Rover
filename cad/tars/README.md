@@ -41,7 +41,7 @@ the parts allow for up to ±0.02 mm of dimensional error.
 
 ## What to print — legs-only build (no arms)
 
-46 parts. Each line is one print unless it says otherwise.
+47 parts. Each line is one print unless it says otherwise.
 
 ### Tools
 
@@ -55,7 +55,7 @@ the parts allow for up to ±0.02 mm of dimensional error.
 - [ ] `buck_converter_support.stl`
 - [ ] `buck_converter_bracket.stl`
 - [ ] `PCA9685_support.stl`
-- [ ] Screen support — **only if you add a screen**; print the one matching the screen you buy
+- [ ] `screen_support waveshare (800x480).stl` — for the Waveshare 5" screen on the shop list
 
 ### Torso — `A. Required/B. Torso/`
 
@@ -76,12 +76,9 @@ the parts allow for up to ±0.02 mm of dimensional error.
 - [ ] `left_shaft_connector.stl` and `right_shaft_connector.stl`
 - [ ] `left_servo_arm.stl` and `right_servo_arm.stl`
 - [ ] `left_servo_clip.stl` and `right_servo_clip.stl`
-- [ ] **Upper lid, pick one:**
-  - `A. Required/B. Torso/upper_lid_5inch.stl` — with a 5" screen opening and camera mount
-  - `B. Mods/Upper Lid - No Screen/upper_lid_no_screen.stl` — no screen. Going by the file
-    names, this one keeps the camera mount and `upper_lid_no_screen_no_cam.stl` doesn't;
-    check the camera hole in your slicer before printing. The letters and 12 dots in that
-    folder are optional inlays: print extras of the dots, as some don't come out round.
+- [ ] `upper_lid_5inch.stl` — with the screen opening and camera mount
+
+(`B. Mods/Upper Lid - No Screen/` is the alternative lid if you ever build one without a screen.)
 
 ### Legs — both sides
 

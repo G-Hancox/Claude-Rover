@@ -59,11 +59,18 @@ class Config:
     mic_enabled: bool = True
     audio_out_device: str = "default"
     audio_in_device: str = "default"
-    tts_engine: str = "espeak"      # "espeak" or "piper"
-    piper_bin: str = "piper"
-    piper_model: str = ""           # path to a Piper .onnx voice
-    piper_sample_rate: int = 22050
+    tts_engine: str = "espeak"      # "espeak", or "piper" for the TARS voice
+    piper_model: str = "~/tars-voice/TARS.onnx"   # get it with: python3 -m tars.voice download
+    piper_speaker: str = "neutral"  # default emotion on multi-speaker voices like TARS
     say_max_chars: int = 500
+
+    # Screen (5" DSI on the front). Drawn straight to the Linux framebuffer: no desktop needed.
+    display_enabled: bool = True
+    display_device: str = "/dev/fb0"
+    display_fps: float = 10.0
+    display_rotate: int = 0         # 0, 90, 180 or 270 if the picture is turned
+    honesty: int = 90               # shown on the idle screen. 90 percent, as in the film.
+    humor: int = 75
 
     host: str = "0.0.0.0"
     port: int = 8080
@@ -91,4 +98,8 @@ def load(path=None):
         raise ValueError("move_time_scale must be above 0 and easing between 0 and 1")
     if cfg.tts_engine not in ("espeak", "piper"):
         raise ValueError('tts_engine must be "espeak" or "piper"')
+    if cfg.display_rotate not in (0, 90, 180, 270):
+        raise ValueError("display_rotate must be 0, 90, 180 or 270")
+    if not all(isinstance(v, int) and 0 <= v <= 100 for v in (cfg.honesty, cfg.humor)):
+        raise ValueError("honesty and humor are percentages, 0 to 100")
     return cfg

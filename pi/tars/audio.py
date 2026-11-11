@@ -1,10 +1,14 @@
 """Voice out (text-to-speech or WAV through the speaker) and in (recordings from the mic).
 
-Everything goes through the standard ALSA tools aplay and arecord. Text is always passed
-on stdin, never on a command line.
+Sound goes through the standard ALSA tools aplay and arecord. Two voices:
+  espeak  robotic, installs with apt, text passed on stdin (never on a command line)
+  piper   natural or character voices such as the TARS voice; runs in this process
+          (pip install piper-tts) and can pick a speaker per emotion on multi-speaker models
 """
 import io
+import json
 import math
+import os
 import queue
 import shutil
 import struct
@@ -15,6 +19,7 @@ import wave
 MIC_RATE = 16000
 MAX_LISTEN_S = 30
 MAX_QUEUE = 5
+EMOTIONS = ("anger", "curiosity", "fear", "joy", "love", "neutral", "sadness", "surprise")
 
 
 class Busy(Exception):
@@ -43,20 +48,74 @@ def run_pipeline(first, second, data, timeout=90):
     return p1.returncode == 0 and p2.returncode == 0
 
 
+class PiperVoiceEngine:
+    """A Piper voice loaded once and kept in memory. Works with old and new piper-tts."""
+
+    def __init__(self, model_path, default_speaker="neutral"):
+        model_path = os.path.expanduser(model_path)
+        if not os.path.isfile(model_path):
+            raise RuntimeError(f"Piper voice not found at {model_path} "
+                               "(for the TARS voice: python3 -m tars.voice download)")
+        if not os.path.isfile(model_path + ".json"):
+            raise RuntimeError(f"Piper voice is missing its settings file {model_path}.json")
+        with open(model_path + ".json") as f:
+            meta = json.load(f)
+        self.speakers = dict(meta.get("speaker_id_map") or {})
+        self.sample_rate = int(meta.get("audio", {}).get("sample_rate", 22050))
+        self.default_speaker = self.speaker_id(default_speaker)
+        try:
+            from piper import PiperVoice
+        except ImportError:
+            try:
+                from piper.voice import PiperVoice
+            except ImportError:
+                raise RuntimeError("piper-tts is not installed (pip install piper-tts)") from None
+        self._voice = PiperVoice.load(model_path)
+
+    def speaker_id(self, name):
+        """Emotion name or number -> speaker id, or None for single-speaker voices."""
+        if not self.speakers or name is None:
+            return None
+        if isinstance(name, int) or str(name).isdigit():
+            return int(name)
+        return self.speakers.get(str(name), self.speakers.get("neutral"))
+
+    def wav(self, text, emotion=None):
+        sid = self.speaker_id(emotion) if emotion else self.default_speaker
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(self.sample_rate)
+            if hasattr(self._voice, "synthesize_wav"):  # piper-tts 1.3 and later
+                try:
+                    from piper import SynthesisConfig
+                    cfg = SynthesisConfig(speaker_id=sid)
+                    self._voice.synthesize_wav(text, w, syn_config=cfg)
+                except ImportError:
+                    if sid is not None:
+                        self._voice.config.speaker_id = sid
+                    self._voice.synthesize_wav(text, w)
+            else:  # piper-tts 1.2
+                self._voice.synthesize(text, w, speaker_id=sid)
+        return buf.getvalue()
+
+
 class Speaker:
     def __init__(self, cfg):
         self._cfg = cfg
-        need = ["aplay", cfg.piper_bin if cfg.tts_engine == "piper" else "espeak-ng"]
+        need = ["aplay"] + (["espeak-ng"] if cfg.tts_engine == "espeak" else [])
         missing = [n for n in need if not shutil.which(n)]
         if missing:
             raise RuntimeError(f"not installed: {', '.join(missing)}")
-        if cfg.tts_engine == "piper" and not cfg.piper_model:
-            raise RuntimeError('tts_engine is "piper" but piper_model is not set')
+        self._piper = (PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker)
+                       if cfg.tts_engine == "piper" else None)
         self._start()
 
     def _start(self):
         self._queue = queue.Queue(maxsize=MAX_QUEUE)
         self._speaking = False
+        self.now_saying = None
         self._last_error = None
         self._closed = False
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -64,11 +123,13 @@ class Speaker:
 
     # ---- public ---------------------------------------------------------
 
-    def say(self, text):
+    def say(self, text, emotion=None):
         text = " ".join(str(text).split())[: self._cfg.say_max_chars]
         if not text:
             raise ValueError("nothing to say")
-        self._put(("say", text))
+        if emotion is not None and emotion not in EMOTIONS:
+            raise ValueError(f"emotion must be one of: {', '.join(EMOTIONS)}")
+        self._put(("say", (text, emotion)))
         return text
 
     def play_wav(self, wav_bytes):
@@ -83,7 +144,8 @@ class Speaker:
             raise Busy("still talking; too much queued") from None
 
     def status(self):
-        return {"speaking": self._speaking or not self._queue.empty(), "error": self._last_error}
+        return {"speaking": self._speaking or not self._queue.empty(), "error": self._last_error,
+                "voice": "piper" if self._piper else self._cfg.tts_engine}
 
     def close(self):
         self._closed = True
@@ -102,25 +164,25 @@ class Speaker:
             self._speaking = True
             try:
                 kind, payload = item
-                ok = self._speak(payload) if kind == "say" else self._play(payload)
+                if kind == "say":
+                    self.now_saying = payload[0]
+                    ok = self._speak(*payload)
+                else:
+                    ok = self._play(payload)
                 self._last_error = None if ok else "playback command failed"
             except Exception as e:  # noqa: BLE001 - audio trouble must never take TARS down
                 self._last_error = repr(e)
             finally:
                 self._speaking = False
+                self.now_saying = None
 
     def _aplay(self, *extra):
         return ["aplay", "-q", "-D", self._cfg.audio_out_device, *extra, "-"]
 
-    def _speak(self, text):
-        c = self._cfg
-        if c.tts_engine == "piper":
-            tts = [c.piper_bin, "--model", c.piper_model, "--output-raw"]
-            play = self._aplay("-r", str(c.piper_sample_rate), "-f", "S16_LE", "-c", "1", "-t", "raw")
-        else:
-            tts = ["espeak-ng", "--stdin", "--stdout"]
-            play = self._aplay()
-        return run_pipeline(tts, play, text.encode())
+    def _speak(self, text, emotion=None):
+        if self._piper:
+            return self._play(self._piper.wav(text, emotion))
+        return run_pipeline(["espeak-ng", "--stdin", "--stdout"], self._aplay(), text.encode())
 
     def _play(self, wav_bytes):
         r = subprocess.run(self._aplay(), input=wav_bytes, timeout=120,
@@ -134,6 +196,10 @@ class Mic:
             raise RuntimeError("not installed: arecord")
         self._cfg = cfg
         self._lock = threading.Lock()
+
+    @property
+    def listening(self):
+        return self._lock.locked()
 
     def record(self, seconds):
         """Record for a whole number of seconds (1-30) and return a 16 kHz mono WAV."""
@@ -159,13 +225,20 @@ class Mic:
 
 
 class MockSpeaker(Speaker):
-    def __init__(self, cfg):
+    def __init__(self, cfg, talk_s=0.0):
         self._cfg = cfg
+        self._piper = None
         self.said = []
+        self.emotions = []
+        self._talk_s = talk_s
         self._start()
 
-    def _speak(self, text):
+    def _speak(self, text, emotion=None):
         self.said.append(text)
+        self.emotions.append(emotion)
+        if self._talk_s:
+            import time
+            time.sleep(self._talk_s)
         return True
 
     def _play(self, wav_bytes):

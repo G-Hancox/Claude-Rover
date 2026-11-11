@@ -6,6 +6,7 @@ import sys
 from . import config as config_mod
 from .audio import Mic, MockMic, MockSpeaker, Speaker
 from .camera import MockCamera, PiCamera
+from .display import Display, Framebuffer, MockFramebuffer
 from .legs import Legs
 from .pca9685 import PCA9685, MockPCA9685
 from .server import make_server
@@ -46,7 +47,17 @@ def main():
     if cfg.mic_enabled:
         mic = optional("Mic", lambda: MockMic(cfg) if mock else Mic(cfg))
 
-    server = make_server(legs, cfg.host, cfg.port, camera=camera, speaker=speaker, mic=mic)
+    display = None
+    if cfg.display_enabled:
+        def start_display():
+            fb = MockFramebuffer() if mock else Framebuffer(cfg.display_device)
+            d = Display(fb, cfg, legs=legs, speaker=speaker, mic=mic)
+            d.start()
+            return d
+        display = optional("Screen", start_display)
+
+    server = make_server(legs, cfg.host, cfg.port, camera=camera, speaker=speaker, mic=mic,
+                         display=display)
 
     def quit_(*_):
         raise KeyboardInterrupt
@@ -58,7 +69,8 @@ def main():
 
     print(f"TARS listening on http://{cfg.host}:{cfg.port}{'  [MOCK]' if mock else ''}\n"
           f"  legs ready (servos limp until the first move) · camera {on(camera)} · "
-          f"speaker {on(speaker)} · mic {on(mic)}", flush=True)
+          f"speaker {on(speaker)} · mic {on(mic)} · screen {on(display)}"
+          + (f"\n  voice: {speaker.status()['voice']}" if speaker else ""), flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -68,7 +80,7 @@ def main():
         legs.wait(timeout=5)   # let a move finish standing up rather than drop mid-step
         legs.release()
         server.server_close()
-        for part in (camera, speaker):
+        for part in (display, camera, speaker):
             if part:
                 try:
                     part.close()

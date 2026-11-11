@@ -1,8 +1,8 @@
 # Shop list — Claude TARS (legs only, no arms)
 
 Based on the TARS-AI V3 bill of materials
-([wiki](https://github.com/TARS-AI-Community/TARS-AI/wiki/V3)), changed for this build:
-your Pi 4 instead of a Pi 5, and the screen left out to start. The links are the ones the
+([wiki](https://github.com/TARS-AI-Community/TARS-AI/wiki/V3), backup copy in
+[`tars-v3-guide.md`](tars-v3-guide.md)), changed for this build: your Pi 4 instead of a Pi 5. The links are the ones the
 V3 guide uses. They're all Amazon US, and I haven't checked current prices or stock.
 
 The V3 builders recommend asking in their Discord before swapping in a different part.
@@ -39,6 +39,13 @@ The V3 builders recommend asking in their Discord before swapping in a different
   ribbon for the Pi 4.** The V3 guide is written for a Pi 5, which uses a smaller 22-pin
   connector, so a kit bought for a Pi 5 may come with the wrong cable.
 
+### Screen
+
+- [ ] **Waveshare 5" DSI LCD, 800×480** — [link](https://www.amazon.com/dp/B08H23KB1G).
+  Of the three screens the V3 body has mounts for, this is the one whose maker documents
+  hooking it to the Pi 4's 15-pin DSI port. Check the listing includes a 15-pin cable
+  for the Pi 4 before ordering.
+
 ### Wiring and hardware
 
 - [ ] **M3 flat-head screw kit** — [link](https://www.amazon.com/dp/B0B38GL3F8).
@@ -64,8 +71,6 @@ The V3 builders recommend asking in their Discord before swapping in a different
 
 ## Later, if you want them
 
-- **5" DSI screen** for the face. Check it works with a Pi 4 (15-pin DSI) and print the
-  matching screen support.
 - **Arms:** 2 more MG996R, 4 MG90S, 6 servo extension cables, 4 magnets (10 × 3 mm), and
   a second screw kit. Run the extension cables through the torso during the first build.
 

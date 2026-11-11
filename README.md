@@ -15,8 +15,8 @@ PC through Claude Code.
  └──────────────────────┬───────────────────────┘
                         │ Wi-Fi
  ┌──────────────── TARS (Pi 4) ─────────────────┐
- │ legs (4 servos) · camera · speaker · mics    │
- │ text-to-speech · control page for your phone │
+ │ legs (4 servos) · camera · screen · voice    │
+ │ mics · TARS voice · control page for phone   │
  └──────────────────────────────────────────────┘
 ```
 
@@ -30,7 +30,7 @@ runs on the PC.
 | [`pi/`](pi/README.md) | Code that runs on TARS: legs, camera, speaker, mics, phone control page |
 | [`brain/`](brain/README.md) | Code that runs on the PC: Claude Code tools, speech-to-text |
 | [`cad/tars/`](cad/tars/README.md) | Print files and the print list (TARS-AI V3 design, CC-BY-NC) |
-| [`docs/`](docs/) | [Shop list](docs/parts-list.md), [build notes](docs/build-notes.md) |
+| [`docs/`](docs/) | [Shop list](docs/parts-list.md), [build notes](docs/build-notes.md), [V3 build guide backup](docs/tars-v3-guide.md) |
 
 ## Credits
 

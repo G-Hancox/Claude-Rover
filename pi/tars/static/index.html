@@ -10,6 +10,8 @@
          display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; }
   h1 { font-size: 1.2rem; margin: 0; letter-spacing: .1em; }
   #video { width: min(92vw, 640px); border-radius: 12px; background: #000; display: none; }
+  #screen { width: min(60vw, 320px); border-radius: 6px; border: 2px solid #3a424a; }
+  select { font: inherit; border-radius: 10px; border: 1px solid #3a424a; background: #22272c; color: #e8e8e8; padding: 0 6px; }
   .panel { width: min(92vw, 640px); display: flex; flex-direction: column; gap: 8px; }
   .label { font-size: .8rem; color: #9aa4ad; text-transform: uppercase; letter-spacing: .08em; }
   #dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -31,6 +33,10 @@
 <body>
 <h1>CLAUDE · TARS</h1>
 <img id="video" alt="TARS camera">
+<div class="panel" id="screenbox" hidden style="align-items:center">
+  <span class="label">Front screen</span>
+  <img id="screen" alt="TARS front screen">
+</div>
 
 <div class="panel">
   <span class="label">Walk</span>
@@ -59,6 +65,11 @@
 <div class="panel">
   <form class="row" id="sayform" hidden>
     <input id="saytext" maxlength="500" placeholder="Type something for TARS to say" autocomplete="off">
+    <select id="emotion" title="Emotion (TARS voice only)">
+      <option value="">neutral</option><option>joy</option><option>curiosity</option>
+      <option>surprise</option><option>sadness</option><option>anger</option>
+      <option>fear</option><option>love</option>
+    </select>
     <button>Say</button>
   </form>
   <button id="listen" hidden>Listen for 5 seconds and play it back</button>
@@ -92,6 +103,8 @@ function show(s) {
   document.querySelectorAll('button[data-move]').forEach(b => b.disabled = moving);
   $('sayform').hidden = !s.speaker;
   $('listen').hidden = !s.mic;
+  $('screenbox').hidden = !s.display;
+  if (s.display) $('screen').src = '/screen.png?' + Date.now();
   if (s.camera && !videoOn) { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
   const flags = [];
   if (l.error) flags.push('servo error: ' + l.error);
@@ -134,7 +147,8 @@ $('sayform').addEventListener('submit', e => {
   e.preventDefault();
   const text = $('saytext').value.trim();
   if (!text) return;
-  post('/say', {text}).then(() => { $('saytext').value = ''; }).catch(err => flash(err.message));
+  const emotion = $('emotion').value;
+  post('/say', emotion ? {text, emotion} : {text}).then(() => { $('saytext').value = ''; }).catch(err => flash(err.message));
 });
 $('listen').addEventListener('click', () => {
   const b = $('listen'), label = b.textContent;
@@ -147,7 +161,7 @@ $('listen').addEventListener('click', () => {
 });
 
 poll();
-setInterval(poll, 300);
+setInterval(poll, 500);
 </script>
 </body>
 </html>

@@ -24,8 +24,8 @@ MAX_LISTEN_S = 20
 tars = Tars()
 mcp = Server("tars", instructions=(
     "Tools for a small TARS robot (from Interstellar) in the user's home. It walks slowly "
-    "on two servo-driven legs and sees through a fixed camera in its front. Look before you "
-    "move and look again after."))
+    "on two servo-driven legs, sees through a fixed camera in its front, and has a speaker, "
+    "microphones and a small front screen. Look before you move and look again after."))
 
 _whisper = None
 
@@ -91,9 +91,14 @@ async def stop() -> str:
 
 
 @mcp.tool()
-async def say(text: str) -> str:
-    """Speak out loud through TARS's speaker (up to 500 characters). Waits until it has finished."""
-    said = (await _call(tars.say, text))["saying"]
+async def say(text: str, emotion: str = "neutral") -> str:
+    """Speak out loud through TARS's speaker (up to 500 characters). Waits until it has finished.
+    The words also appear on TARS's front screen.
+
+    emotion: neutral, joy, curiosity, surprise, sadness, anger, fear or love. With the TARS
+    voice this picks how it sounds; with the basic voice it's ignored. Mostly use neutral.
+    """
+    said = (await _call(tars.say, text, None if emotion == "neutral" else emotion))["saying"]
     for _ in range(600):  # up to 60 s
         await asyncio.sleep(0.1)
         speaker = (await _call(tars.status)).get("speaker") or {}
@@ -102,6 +107,15 @@ async def say(text: str) -> str:
                 return f"Tried to say it, but the speaker reported a problem: {speaker['error']}"
             break
     return f'Said: "{said}"'
+
+
+@mcp.tool()
+async def show(text: str, seconds: int = 15) -> str:
+    """Put text on TARS's front screen without saying it (up to 500 characters), for
+    1-600 seconds. Good for things that read better than they sound: lists, numbers,
+    spellings. Send an empty text to clear the screen."""
+    await _call(tars.show, text, int(seconds))
+    return f"Showing on screen for {int(seconds)} s." if text else "Screen cleared."
 
 
 def _transcribe(wav_bytes):
@@ -145,7 +159,9 @@ def check():
         return 1
     print("Connected.")
     print(f"  camera: {'yes' if s.get('camera') else 'no'}   speaker: {'yes' if s.get('speaker') else 'no'}   "
-          f"mic: {'yes' if s.get('mic') else 'no'}")
+          f"mic: {'yes' if s.get('mic') else 'no'}   screen: {'yes' if s.get('display') else 'no'}")
+    if s.get("speaker"):
+        print(f"  voice: {s['speaker'].get('voice', '?')}")
     print("  legs: " + _legs_line(s))
     try:
         import faster_whisper  # noqa: F401

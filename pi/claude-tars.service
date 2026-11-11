@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 User=pi
 WorkingDirectory=/home/pi/Claude-TARS/pi
-ExecStart=/usr/bin/python3 -m tars --config tars.json
+ExecStart=/home/pi/tars-venv/bin/python3 -m tars --config tars.json
 Restart=on-failure
 RestartSec=2
 

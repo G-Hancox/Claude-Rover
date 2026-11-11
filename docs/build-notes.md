@@ -25,7 +25,13 @@ assembly follows the [V3 wiki guide](https://github.com/TARS-AI-Community/TARS-A
 - **Power as designed:** 12V Li-ion pack inside → switch → XL4015 set to **6.2V** for the
   servos, and a 5V USB regulator for the Pi.
 - **Audio through the USB sound card** (speakers and mics on one board).
-- **No screen to start.** Use the no-screen upper lid; add a screen later if wanted.
+- **Screen: Waveshare 5" DSI (800×480)** on the Pi 4's DSI port, in the standard 5" upper
+  lid. Our software draws it straight to the framebuffer: captions of what Claude says,
+  what TARS is doing, and an honesty/humor readout when idle. No desktop needed.
+- **Voice: the TARS-AI community's TARS voice** (a Piper model with one speaker per
+  emotion), downloaded on the Pi with `python3 -m tars.voice download`. espeak stays as the
+  fallback. It's trained on the film's TARS lines (Bill Irwin), so it stays a personal-use
+  thing: no publishing clips of it.
 - **No distance sensor.** TARS walks slowly and Claude judges distance from the camera.
 
 ## Safety, as built
@@ -41,8 +47,21 @@ assembly follows the [V3 wiki guide](https://github.com/TARS-AI-Community/TARS-A
 
 - [ ] Real move timing. The speeds are a guess at matching TARS-AI's; adjust
       `move_time_scale` once it's walking.
-- [ ] Does `upper_lid_no_screen.stl` have the camera mount? (Check in the slicer.)
+- [ ] Waveshare screen on the Pi 4: confirm `dtoverlay=vc4-kms-dsi-7inch` lights it up.
+- [ ] Framebuffer depth (16 or 32-bit) on the real Pi; both are supported.
 - [ ] Turn direction on the real build: if "turn left" turns right, set `swap_turns`.
+
+## If the upstream TARS-AI repo disappears
+
+What we already have here: the print files and their license (`cad/tars/`), the build
+guide text (`docs/tars-v3-guide.md`), the bill of materials (`parts-list.md`), the servo
+layout and calibration values (`pi/tars/config.py`), and the walking moves
+(`pi/tars/moves.py`).
+
+What we don't have: the guide's **photos** (save the wiki page as a PDF), the **CAD
+source** (only STLs, so big redesigns would mean remodelling; small fixes can be done on
+the STLs), and the **TARS voice** file, which lives on Hugging Face. Once it's on the Pi,
+keep a copy of `~/tars-voice` on your PC.
 
 ## Things to watch
 

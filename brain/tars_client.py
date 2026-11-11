@@ -59,8 +59,14 @@ class Tars:
     def release(self):
         return self._request("POST", "/release")
 
-    def say(self, text):
-        return self._request("POST", "/say", {"text": text})
+    def say(self, text, emotion=None):
+        body = {"text": text}
+        if emotion:
+            body["emotion"] = emotion
+        return self._request("POST", "/say", body)
+
+    def show(self, text, seconds=15):
+        return self._request("POST", "/display", {"text": text, "seconds": seconds})
 
     def listen(self, seconds):
         return self._request("POST", "/listen", {"seconds": seconds}, timeout=seconds + 15, raw=True)

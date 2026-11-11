@@ -344,5 +344,222 @@ class ServerTests(unittest.TestCase):
             server.server_close()
 
 
+
+
+# ---- screen ------------------------------------------------------------------
+
+from tars.display import Display, Framebuffer, MockFramebuffer  # noqa: E402
+
+
+class FakeLegs:
+    def __init__(self, **status):
+        self.s = {"moving": False, "move": None, "error": None, **status}
+
+    def status(self):
+        return self.s
+
+
+class ScreenTests(unittest.TestCase):
+    def make(self, **kw):
+        cfg = Config()
+        speaker = kw.pop("speaker", None)
+        mic = kw.pop("mic", None)
+        legs = FakeLegs(**kw)
+        clock = Clock()
+        d = Display(MockFramebuffer(), cfg, legs=legs, speaker=speaker, mic=mic, clock=clock)
+        return d, legs, clock
+
+    def pixels_differ(self, a, b):
+        return a.tobytes() != b.tobytes()
+
+    def test_idle_readout_and_states_render(self):
+        d, legs, clock = self.make()
+        idle = d.render()
+        self.assertEqual(idle.size, (800, 480))
+        legs.s.update(moving=True, move="step_forward")
+        self.assertTrue(self.pixels_differ(idle, d.render(clock.t)))
+        legs.s.update(moving=False, error="OSError(121)")
+        self.assertTrue(self.pixels_differ(idle, d.render(clock.t)))
+
+    def test_shown_text_expires(self):
+        d, legs, clock = self.make()
+        plain, _, _ = self.make()
+        d.show_text("Hello there " * 60, seconds=5)  # long text must still fit
+        self.assertTrue(self.pixels_differ(plain.render(clock.t), d.render()))
+        clock.t += 6
+        self.assertFalse(self.pixels_differ(plain.render(clock.t), d.render()))
+
+    def test_speech_shows_then_lingers(self):
+        class Sp:
+            now_saying = "Hello from TARS"
+        sp = Sp()
+        d, legs, clock = self.make(speaker=sp)
+        speaking = d.render()
+        sp.now_saying = None
+        clock.t += 2
+        lingering = d.render()
+        clock.t += 10
+        gone = d.render()
+        self.assertTrue(self.pixels_differ(speaking, gone))
+        self.assertTrue(self.pixels_differ(lingering, gone))
+
+    def test_rotated_screen_swaps_size(self):
+        cfg = Config(display_rotate=90)
+        d = Display(MockFramebuffer(800, 480), cfg, legs=FakeLegs())
+        self.assertEqual(d.render().size, (480, 800))
+
+    def test_loop_writes_frames_and_png(self):
+        fb = MockFramebuffer()
+        d = Display(fb, Config(display_fps=50), legs=FakeLegs())
+        d.start()
+        self.assertTrue(wait_for(lambda: fb.frames >= 3 and d.png()))
+        d.close()
+        self.assertEqual(d.png()[:4], b"\x89PNG")
+
+    def test_framebuffer_writer_16_and_32_bit(self):
+        from PIL import Image
+        for bpp in (16, 32):
+            with tempfile.TemporaryDirectory() as tmp:
+                sysdir = os.path.join(tmp, "sys")
+                os.makedirs(sysdir)
+                for name, value in (("virtual_size", "4,6"), ("modes", "U:4x2p-0"),
+                                    ("bits_per_pixel", str(bpp)), ("stride", str(4 * bpp // 8 + 4))):
+                    with open(os.path.join(sysdir, name), "w") as f:
+                        f.write(value + "\n")
+                dev = os.path.join(tmp, "fb0")
+                with open(dev, "wb") as f:
+                    f.write(b"\0" * 200)
+                import tars.display as disp
+                real = disp.os.path.join
+                disp.os.path.join = lambda a, *b: real(sysdir, *b) if a.startswith("/sys/") else real(a, *b)
+                try:
+                    try:
+                        fb = Framebuffer(dev)
+                    except ImportError:
+                        self.skipTest("numpy not installed")
+                finally:
+                    disp.os.path.join = real
+                self.assertEqual((fb.width, fb.height, fb.bpp), (4, 2, bpp))
+                fb.show(Image.new("RGB", (4, 2), (255, 0, 0)))
+                fb.close()
+                with open(dev, "rb") as f:
+                    data = f.read()
+                if bpp == 32:
+                    self.assertEqual(data[:4], b"\x00\x00\xff\xff")       # B G R A
+                    self.assertEqual(data[16:20], b"\0\0\0\0")            # stride padding
+                else:
+                    self.assertEqual(data[:2], (0xF800).to_bytes(2, "little"))
+                    self.assertEqual(data[8:12], b"\0\0\0\0")             # stride padding
+
+
+class Clock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
+
+
+# ---- TARS voice (Piper) ------------------------------------------------------------
+
+class PiperTests(unittest.TestCase):
+    def fake_piper(self, new_api):
+        import sys
+        import types
+        calls = []
+
+        class Voice:
+            config = types.SimpleNamespace(speaker_id=None)
+
+            @classmethod
+            def load(cls, path):
+                calls.append(("load", path))
+                return cls()
+
+            if new_api:
+                def synthesize_wav(self, text, w, syn_config=None):
+                    calls.append(("say", text, syn_config.speaker_id))
+                    w.writeframes(b"\0\0" * 10)
+            else:
+                def synthesize(self, text, w, speaker_id=None):
+                    calls.append(("say", text, speaker_id))
+                    w.writeframes(b"\0\0" * 10)
+
+        mod = types.ModuleType("piper")
+        mod.PiperVoice = Voice
+        if new_api:
+            class SynthesisConfig:
+                def __init__(self, speaker_id=None):
+                    self.speaker_id = speaker_id
+            mod.SynthesisConfig = SynthesisConfig
+        sys.modules["piper"] = mod
+        self.addCleanup(sys.modules.pop, "piper", None)
+        return calls
+
+    def voice_files(self, d):
+        path = os.path.join(d, "TARS.onnx")
+        with open(path, "wb") as f:
+            f.write(b"model")
+        with open(path + ".json", "w") as f:
+            json.dump({"audio": {"sample_rate": 22050},
+                       "speaker_id_map": {"anger": 0, "joy": 3, "neutral": 5}}, f)
+        return path
+
+    def test_emotions_pick_speakers_on_both_piper_versions(self):
+        from tars.audio import PiperVoiceEngine
+        for new_api in (True, False):
+            calls = self.fake_piper(new_api)
+            with tempfile.TemporaryDirectory() as d:
+                eng = PiperVoiceEngine(self.voice_files(d), "neutral")
+                wav = eng.wav("Hello")
+                eng.wav("Yes!", "joy")
+                eng.wav("Hmm", "fear")  # not in this voice: falls back to neutral
+            with wave.open(io.BytesIO(wav)) as w:
+                self.assertEqual((w.getframerate(), w.getnframes()), (22050, 10))
+            self.assertEqual([c[2] for c in calls if c[0] == "say"], [5, 3, 5], new_api)
+
+    def test_missing_voice_explains_how_to_get_it(self):
+        from tars.audio import PiperVoiceEngine
+        with self.assertRaises(RuntimeError) as cm:
+            PiperVoiceEngine("/nowhere/TARS.onnx")
+        self.assertIn("tars.voice download", str(cm.exception))
+
+    def test_speaker_rejects_unknown_emotion_and_passes_known(self):
+        sp = MockSpeaker(Config())
+        with self.assertRaises(ValueError):
+            sp.say("hi", "smug")
+        sp.say("hi", "joy")
+        self.assertTrue(wait_for(lambda: sp.emotions == ["joy"]))
+        sp.close()
+
+
+class ScreenServerTests(unittest.TestCase):
+    def test_display_endpoint_and_png(self):
+        legs, pwm, cfg = make_legs()
+        disp = Display(MockFramebuffer(), Config(display_fps=50), legs=legs)
+        disp.start()
+        server = make_server(legs, "127.0.0.1", 0, display=disp)
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            req = urllib.request.Request(url + "/display", data=b'{"text": "Hello", "seconds": 5}',
+                                         method="POST")
+            with urllib.request.urlopen(req) as r:
+                self.assertEqual(json.loads(r.read())["showing"], "Hello")
+            for bad in (b'{"text": 5}', b'{"text": "x", "seconds": 0}'):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    urllib.request.urlopen(urllib.request.Request(url + "/display", data=bad, method="POST"))
+                self.assertEqual(cm.exception.code, 400)
+            self.assertTrue(wait_for(lambda: disp.png()))
+            with urllib.request.urlopen(url + "/screen.png") as r:
+                self.assertEqual(r.read()[:4], b"\x89PNG")
+            with urllib.request.urlopen(url + "/status") as r:
+                self.assertTrue(json.loads(r.read())["display"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            disp.close()
+
+
 if __name__ == "__main__":
     unittest.main()
