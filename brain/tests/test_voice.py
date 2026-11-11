@@ -77,7 +77,7 @@ class LocalCommandTests(unittest.TestCase):
     def test_mode_switching_survives_misheard_words(self):
         self.v.handle("Switch to TARS mode.")
         self.assertEqual(self.tars.p["mode"], "tars")
-        self.assertIn("Honesty 90 percent", self.tars.said[-1][0])
+        self.assertEqual(self.tars.said[-1][0], "TARS mode, confirmed. Honesty, 90 percent. Humor, 75 percent.")
         self.v.handle("claude mode")
         self.assertEqual(self.tars.p["mode"], "claude")
         self.v.handle("Stars mode")          # common mishearing
@@ -90,6 +90,7 @@ class LocalCommandTests(unittest.TestCase):
         self.v.handle("Set humor to 60 percent.")
         self.v.handle("honesty setting 95")
         self.assertEqual((self.tars.p["humor"], self.tars.p["honesty"]), (60, 95))
+        self.assertEqual(self.tars.said[-1][0], "Honesty level, 95 percent. Confirmed.")
         self.v.handle("set humor to 250")
         self.assertEqual(self.tars.p["humor"], 60)
         self.assertIn("only goes up to 100", self.tars.said[-1][0])

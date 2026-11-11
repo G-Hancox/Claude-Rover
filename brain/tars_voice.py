@@ -145,10 +145,11 @@ class Voice:
         if re.fullmatch(r"(switch to |go to |change to |enable |activate )?(tars|tar|tours|stars) (mode|personality)( on)?", t):
             self.tars.persona(mode="tars")
             p = self.tars.persona()
-            return f"TARS mode. Honesty {p['honesty']} percent, humor {p['humor']} percent.", None
+            return (f"TARS mode, confirmed. Honesty, {p['honesty']} percent. "
+                    f"Humor, {p['humor']} percent."), None
         if re.fullmatch(r"(switch to |go to |change to |back to )?(claude|clod|cloud|clawed) (mode|personality)|be yourself", t):
             self.tars.persona(mode="claude")
-            return "Back to being Claude.", None
+            return "Claude mode, confirmed. Back to being myself.", None
         m = re.fullmatch(r"(?:set |change |turn )?(?:your )?(honesty|humou?r)(?: setting| level| parameter)?(?: to| at)? (\d{1,3})(?: percent)?", t)
         if m:
             which = "honesty" if m.group(1) == "honesty" else "humor"
@@ -156,7 +157,7 @@ class Voice:
             if value > 100:
                 return f"{which.capitalize()} only goes up to 100 percent.", None
             self.tars.persona(**{which: value})
-            return f"{which.capitalize()} set to {value} percent.", None
+            return f"{which.capitalize()} level, {value} percent. Confirmed.", None
         if t in ("new conversation", "start over", "forget that", "forget everything", "reset"):
             self.session = None
             return "Starting fresh.", None
