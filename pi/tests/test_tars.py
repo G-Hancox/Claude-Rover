@@ -403,6 +403,17 @@ class ScreenTests(unittest.TestCase):
         self.assertTrue(self.pixels_differ(speaking, gone))
         self.assertTrue(self.pixels_differ(lingering, gone))
 
+    def test_speech_too_short_to_catch_still_shows(self):
+        sp = MockSpeaker(Config())  # finishes instantly, before any frame is drawn
+        d, legs, clock = self.make(speaker=sp)
+        plain, _, _ = self.make()
+        sp.say("Quick one")
+        self.assertTrue(wait_for(lambda: sp.said == ["Quick one"] and sp.now_saying is None))
+        self.assertTrue(self.pixels_differ(plain.render(clock.t), d.render()))
+        clock.t += 10
+        self.assertFalse(self.pixels_differ(plain.render(clock.t), d.render()))
+        sp.close()
+
     def test_rotated_screen_swaps_size(self):
         cfg = Config(display_rotate=90)
         d = Display(MockFramebuffer(800, 480), cfg, legs=FakeLegs())

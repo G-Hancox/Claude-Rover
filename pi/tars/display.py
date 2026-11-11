@@ -137,6 +137,7 @@ class Display:
         self._lock = threading.Lock()
         self._shown = None          # (text, until) from show_text()
         self._spoken = None         # (text, until) lingering after speech
+        self._seen_said = 0
         self._png = None
         self._running = False
         self._thread = None
@@ -204,10 +205,16 @@ class Display:
     def _state(self, now):
         legs = self._legs.status() if self._legs else {}
         saying = getattr(self._speaker, "now_saying", None) if self._speaker else None
+        last = getattr(self._speaker, "last_said", None) if self._speaker else None
         listening = bool(self._mic and self._mic.listening)
         with self._lock:
             if saying:
                 self._spoken = (saying, now + SPEECH_LINGER_S)
+            if last and last[0] != self._seen_said:
+                # something was said since the last frame, even if it's already finished
+                self._seen_said = last[0]
+                if not saying:
+                    self._spoken = (last[1], now + SPEECH_LINGER_S)
             shown = self._shown if self._shown and self._shown[1] > now else None
             spoken = self._spoken if self._spoken and self._spoken[1] > now else None
         caption = saying or (shown[0] if shown else None) or (spoken[0] if spoken else None)

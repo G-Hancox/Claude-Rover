@@ -43,7 +43,7 @@ def main():
         camera = optional("Camera", lambda: MockCamera() if mock else PiCamera(
             cfg.camera_width, cfg.camera_height, cfg.camera_fps, cfg.camera_hflip, cfg.camera_vflip))
     if cfg.speaker_enabled:
-        speaker = optional("Speaker", lambda: MockSpeaker(cfg) if mock else Speaker(cfg))
+        speaker = optional("Speaker", lambda: MockSpeaker(cfg, talk_s=0.3) if mock else Speaker(cfg))
     if cfg.mic_enabled:
         mic = optional("Mic", lambda: MockMic(cfg) if mock else Mic(cfg))
 

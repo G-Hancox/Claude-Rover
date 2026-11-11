@@ -116,6 +116,8 @@ class Speaker:
         self._queue = queue.Queue(maxsize=MAX_QUEUE)
         self._speaking = False
         self.now_saying = None
+        self.last_said = None   # (count, text): lets the screen catch even very short speech
+        self._said_count = 0
         self._last_error = None
         self._closed = False
         self._thread = threading.Thread(target=self._run, daemon=True)
@@ -166,6 +168,8 @@ class Speaker:
                 kind, payload = item
                 if kind == "say":
                     self.now_saying = payload[0]
+                    self._said_count += 1
+                    self.last_said = (self._said_count, payload[0])
                     ok = self._speak(*payload)
                 else:
                     ok = self._play(payload)
@@ -225,6 +229,8 @@ class Mic:
 
 
 class MockSpeaker(Speaker):
+    """Pretend speaker. talk_s: seconds per word to 'talk' for (0 = instant, for tests)."""
+
     def __init__(self, cfg, talk_s=0.0):
         self._cfg = cfg
         self._piper = None
@@ -238,7 +244,7 @@ class MockSpeaker(Speaker):
         self.emotions.append(emotion)
         if self._talk_s:
             import time
-            time.sleep(self._talk_s)
+            time.sleep(min(15.0, self._talk_s * len(text.split())))
         return True
 
     def _play(self, wav_bytes):
