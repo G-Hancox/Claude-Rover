@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 
+import tars_memory
 from tars_client import Tars, TarsError
 
 try:  # mcp 2.x
@@ -132,6 +133,33 @@ async def personality(mode: str = "", honesty: int = -1, humor: int = -1) -> str
         changes["humor"] = int(humor)
     p = await _call(tars.persona, **changes) if changes else await _call(tars.persona)
     return f"Mode: {p['mode']}. Honesty {p['honesty']}%, humor {p['humor']}%."
+
+
+@mcp.tool()
+async def remember(note: str) -> str:
+    """Save a short note that lasts between conversations (up to 300 characters).
+    Use it on your own for unfinished jobs, facts about the house, who's who, and G's
+    preferences. Not for chit-chat or private things seen on camera."""
+    try:
+        return tars_memory.remember(note)
+    except ValueError as e:
+        raise ToolError(str(e)) from None
+
+
+@mcp.tool()
+async def recall() -> str:
+    """Read all your notes from earlier conversations."""
+    return tars_memory.for_prompt(limit=20000)
+
+
+@mcp.tool()
+async def forget(about: str) -> str:
+    """Delete every note containing these words (case-insensitive)."""
+    try:
+        gone = tars_memory.forget(about)
+    except ValueError as e:
+        raise ToolError(str(e)) from None
+    return ("Forgot:\n" + "\n".join(f"- {g}" for g in gone)) if gone else "No note matched that."
 
 
 def _transcribe(wav_bytes):

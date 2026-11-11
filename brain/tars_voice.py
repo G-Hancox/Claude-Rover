@@ -10,7 +10,9 @@ Handled here without asking Claude (fast, and free):
   "stop" / "freeze"                 stop moving right away
   "TARS mode" / "Claude mode"       switch personality
   "set humor to 60" (or honesty)    change TARS's settings
-  "new conversation" / "start over" forget the conversation so far
+  "new conversation" / "start over" forget the conversation so far (notes are kept)
+
+Claude keeps notes between conversations in brain/memory.md (see tars_memory.py).
 
 Voice turns can't touch files or run commands on this PC: only TARS's tools and web search.
 """
@@ -23,12 +25,14 @@ import sys
 import tempfile
 import time
 
+import tars_memory
 from tars_client import Tars, TarsError
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SESSION_IDLE_S = 10 * 60          # a pause longer than this starts a fresh conversation
 CLAUDE_TIMEOUT_S = 240
-ALLOWED = "mcp__tars__look,mcp__tars__move,mcp__tars__stop,mcp__tars__list_moves,mcp__tars__show,WebSearch,WebFetch"
+ALLOWED = ("mcp__tars__look,mcp__tars__move,mcp__tars__stop,mcp__tars__list_moves,mcp__tars__show,"
+           "mcp__tars__remember,mcp__tars__recall,mcp__tars__forget,WebSearch,WebFetch")
 DENIED = "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,mcp__tars__say,mcp__tars__listen,mcp__tars__personality"
 EMOTIONS = ("anger", "curiosity", "fear", "joy", "love", "neutral", "sadness", "surprise")
 # Whisper sometimes "hears" these in silence or noise
@@ -166,7 +170,8 @@ class Voice:
         now = self.clock()
         if self.session_mode != persona["mode"] or now - self.last_turn > SESSION_IDLE_S:
             self.session = None
-        system = VOICE_RULES + PERSONAS[persona["mode"]].format(**persona)
+        system = (VOICE_RULES + PERSONAS[persona["mode"]].format(**persona) + tars_memory.RULES
+                  + "\n" + tars_memory.for_prompt())
         cmd = [self.claude, "-p", text, "--output-format", "json",
                "--append-system-prompt", system,
                "--strict-mcp-config", "--mcp-config", os.path.join(HERE, ".mcp.json"),

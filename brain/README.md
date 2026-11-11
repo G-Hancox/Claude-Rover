@@ -1,7 +1,7 @@
 # brain/ — runs on your PC
 
 This connects Claude to TARS using **Claude Code on your existing subscription**, so
-there's no separate API bill. It gives Claude eight tools:
+there's no separate API bill. It gives Claude these tools:
 
 | Tool | What it does |
 |---|---|
@@ -12,6 +12,7 @@ there's no separate API bill. It gives Claude eight tools:
 | `say` | Speaks through TARS's speaker (with an emotion, in the TARS voice) and puts the words on its screen |
 | `show` | Puts text on TARS's front screen without speaking |
 | `personality` | Reads or switches the mode (Claude or TARS) and TARS's honesty/humor settings |
+| `remember`, `recall`, `forget` | Notes that last between conversations (see below) |
 | `listen` | Records TARS's mics and turns the speech into text (on this PC) |
 
 > Tested end to end against a **simulated** TARS using the same protocol Claude Code
@@ -91,6 +92,19 @@ down: they can look, move, show things on the screen and search the web, but can
 or change files or run commands on this PC (anyone in the room can talk to TARS).
 Every question uses your Claude plan, and answers take a few seconds.
 
+## Memory between conversations
+
+Claude keeps a notebook in **`brain/memory.md`** on this PC (never uploaded to GitHub). It
+saves notes on its own when something is worth knowing next time: an unfinished job and
+where it stopped, the house layout, who's who as you introduce people, and how you like
+things done. It says "Noted." when it saves. Every conversation starts with the notes.
+
+- "Remember that the printer is on the left bench." / "What do you remember?" /
+  "Forget the printer note."
+- Open `memory.md` in Notepad any time to read, fix or delete notes.
+
+For things you want it to always know without saying them, add lines to `CLAUDE.md`.
+
 ## Try it with no robot
 
 On the PC, in one window: `cd pi` then `python -m tars --mock`.
@@ -102,6 +116,7 @@ Claude will "see" a test pattern and walk a TARS that isn't there. Open
 
 - `tars_mcp.py` — the tools (an MCP server that Claude Code starts by itself)
 - `tars_voice.py` — the hands-free "Hey TARS" program (`Start TARS voice.bat`)
+- `tars_memory.py` — the notebook (`memory.md`)
 - `tars_client.py` — plain Python wrapper around TARS's web API
 - `.mcp.json` — tells Claude Code how to start the tools
 - `CLAUDE.md` — moving and talking rules Claude reads when started in this folder

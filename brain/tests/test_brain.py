@@ -1,6 +1,7 @@
 """End to end: a simulated TARS (pi/ in mock mode) driven through the real MCP tools."""
 import asyncio
 import os
+import tempfile
 import subprocess
 import sys
 import time
@@ -22,6 +23,9 @@ try:
     HAVE_MCP = True
 except ImportError:
     HAVE_MCP = False
+
+
+MEMDIR = tempfile.mkdtemp()
 
 
 def setUpModule():
@@ -76,7 +80,8 @@ class ToolTests(unittest.TestCase):
         async def go():
             params = StdioServerParameters(command=sys.executable,
                                            args=[os.path.join(BRAIN, "tars_mcp.py")],
-                                           env={**os.environ, "TARS_URL": url})
+                                           env={**os.environ, "TARS_URL": url,
+                                                "TARS_MEMORY_FILE": os.path.join(MEMDIR, "memory.md")})
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
@@ -95,7 +100,8 @@ class ToolTests(unittest.TestCase):
             ("stop", {}),
             ("listen", {"seconds": 1}),
         )
-        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "show", "listen", "personality"})
+        self.assertEqual(tools, {"look", "list_moves", "move", "stop", "say", "show", "listen", "personality",
+                                 "remember", "recall", "forget"})
         look, moves, turn, bad, say, show, stop, listen = r
         self.assertIn("Showing on screen", show.content[0].text)
         for name, res in (("look", look), ("moves", moves), ("turn", turn), ("say", say), ("show", show),
@@ -111,6 +117,19 @@ class ToolTests(unittest.TestCase):
         self.assertIn("Done: turn_left x1", turn.content[0].text)
         self.assertIn("Honesty setting", say.content[0].text)
         self.assertTrue("Heard" in listen.content[0].text or "faster-whisper" in listen.content[0].text)
+
+    def test_memory_tools(self):
+        _, (saved, again, notes, gone, empty) = self.call(
+            ("remember", {"note": "Hallway still to explore"}),
+            ("remember", {"note": "Hallway still to explore"}),
+            ("recall", {}),
+            ("forget", {"about": "hallway"}),
+            ("recall", {}))
+        self.assertEqual(saved.content[0].text, "Noted.")
+        self.assertEqual(again.content[0].text, "Already noted.")
+        self.assertIn("Hallway still to explore", notes.content[0].text)
+        self.assertIn("Forgot", gone.content[0].text)
+        self.assertIn("empty", empty.content[0].text)
 
     def test_unreachable_tars_is_a_tool_error(self):
         _, (res,) = self.call(("look", {}), url="http://127.0.0.1:9")

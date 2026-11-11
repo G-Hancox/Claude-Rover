@@ -8,6 +8,8 @@ import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
+import tars_memory  # noqa: E402
+tars_memory.PATH = os.path.join(tempfile.mkdtemp(), "memory.md")   # never touch the real notes
 import tars_voice  # noqa: E402
 from tars_voice import Voice, split_emotion, spoken  # noqa: E402
 
@@ -125,6 +127,18 @@ class ClaudeCallTests(unittest.TestCase):
         self.assertIn("mcp__tars__look", allowed)
         self.assertNotIn("Bash", allowed)
         self.assertNotIn("--resume", cmd)
+        self.assertIn("mcp__tars__remember", allowed)
+
+    def test_notes_are_in_every_conversation(self):
+        tars_memory.remember("Workshop explored; hallway not yet")
+        try:
+            v = self.voice([ok("Right.")])
+            v.handle("where were we")
+            system = self.arg(self.claude.calls[0], "--append-system-prompt")
+            self.assertIn("hallway not yet", system)
+            self.assertIn("Save on your own", system)
+        finally:
+            tars_memory.forget("hallway")
 
     def test_conversation_continues_then_resets_on_idle_and_mode_change(self):
         v = self.voice([ok("One.", "s1"), ok("Two.", "s2"), ok("Three.", "s3"), ok("Four.", "s4")])
@@ -211,7 +225,8 @@ class LiveLoopTest(unittest.TestCase):
                 except OSError:
                     import time
                     time.sleep(0.1)
-            env = {**os.environ, "TARS_URL": url, "PATH": tmp + os.pathsep + os.environ["PATH"]}
+            env = {**os.environ, "TARS_URL": url, "PATH": tmp + os.pathsep + os.environ["PATH"],
+                   "TARS_MEMORY_FILE": os.path.join(tmp, "memory.md")}
             voice = subprocess.Popen([sys.executable, os.path.join(os.path.dirname(HERE), "tars_voice.py")],
                                      env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             import time
