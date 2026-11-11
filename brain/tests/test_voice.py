@@ -122,13 +122,15 @@ class ClaudeCallTests(unittest.TestCase):
         self.assertIn("--strict-mcp-config", cmd)
         self.assertTrue(self.arg(cmd, "--mcp-config").endswith(".mcp.json"))
         denied = self.arg(cmd, "--disallowedTools").split(",")
-        for tool in ("Bash", "Write", "Edit", "Read", "mcp__tars__say"):
+        for tool in ("Bash", "Write", "Edit", "Read", "mcp__tars__say", "mcp__tars__listen"):
             self.assertIn(tool, denied)
         allowed = self.arg(cmd, "--allowedTools").split(",")
         self.assertIn("mcp__tars__look", allowed)
         self.assertNotIn("Bash", allowed)
         self.assertNotIn("--resume", cmd)
         self.assertIn("mcp__tars__remember", allowed)
+        self.assertIn("mcp__tars__personality", allowed)   # "crank up the humor" goes to Claude
+        self.assertIn("Confirmed.", self.arg(cmd, "--append-system-prompt"))
 
     def test_notes_are_in_every_conversation(self):
         tars_memory.remember("Workshop explored; hallway not yet")
@@ -213,6 +215,16 @@ class SettingsTests(unittest.TestCase):
         system = claude.calls[0][claude.calls[0].index("--append-system-prompt") + 1]
         self.assertIn("speaking as yourself", system)
         self.assertIn("twisted", system)
+
+
+class ConfirmationTests(unittest.TestCase):
+    def test_confirmation_lines(self):
+        import tars_settings as ts
+        p = {"mode": "tars", "honesty": 80, "humor": 100}
+        self.assertEqual(ts.confirmation({"humor": 100}, p), "Humor level, 100 percent. Confirmed.")
+        self.assertEqual(ts.confirmation({"honesty": 80, "humor": 100}, p),
+                         "Honesty level, 80 percent. Confirmed. Humor level, 100 percent. Confirmed.")
+        self.assertEqual(ts.confirmation({"mode": "tars"}, p), "TARS mode, confirmed.")
 
 
 class HelperTests(unittest.TestCase):

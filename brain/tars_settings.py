@@ -41,3 +41,15 @@ def honesty_style(level):
 
 def describe(persona):
     return humor_style(persona["humor"]) + "\n" + honesty_style(persona["honesty"])
+
+
+def confirmation(changes, persona):
+    """The exact line to say after a change, e.g. 'Humor level, 100 percent. Confirmed.'"""
+    lines = []
+    if "mode" in changes:
+        lines.append("TARS mode, confirmed." if persona["mode"] == "tars"
+                     else "Claude mode, confirmed. Back to being myself.")
+    for which in ("honesty", "humor"):
+        if which in changes:
+            lines.append(f"{which.capitalize()} level, {persona[which]} percent. Confirmed.")
+    return " ".join(lines)

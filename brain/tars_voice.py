@@ -33,8 +33,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SESSION_IDLE_S = 10 * 60          # a pause longer than this starts a fresh conversation
 CLAUDE_TIMEOUT_S = 240
 ALLOWED = ("mcp__tars__look,mcp__tars__move,mcp__tars__stop,mcp__tars__list_moves,mcp__tars__show,"
-           "mcp__tars__remember,mcp__tars__recall,mcp__tars__forget,WebSearch,WebFetch")
-DENIED = "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,mcp__tars__say,mcp__tars__listen,mcp__tars__personality"
+           "mcp__tars__remember,mcp__tars__recall,mcp__tars__forget,mcp__tars__personality,"
+           "WebSearch,WebFetch")
+DENIED = "Bash,Edit,Write,NotebookEdit,Read,Glob,Grep,mcp__tars__say,mcp__tars__listen"
 EMOTIONS = ("anger", "curiosity", "fear", "joy", "love", "neutral", "sadness", "surprise")
 # Whisper sometimes "hears" these in silence or noise
 NOISE = {"", "you", "thank you", "thank you.", "thanks for watching", "thanks for watching!", "bye", "."}
@@ -50,6 +51,9 @@ What you say is turned into speech by the robot, so:
   emotions on, so leave it out unless it really fits.
 - You can look() through the robot's camera and move() it. Look before you move. Keep moves
   short and only move when asked or clearly needed. If anything seems unsafe, stop().
+- If G asks to change your humor or honesty setting or your mode, however he phrases it,
+  use personality() and confirm with the exact line it gives you, e.g.
+  "Humor level, 90 percent. Confirmed."
 - What G said came through speech recognition and may have small mistakes; read it charitably.
   If it's unclear, ask a short question back.
 """
@@ -145,19 +149,19 @@ class Voice:
         if re.fullmatch(r"(switch to |go to |change to |enable |activate )?(tars|tar|tours|stars) (mode|personality)( on)?", t):
             self.tars.persona(mode="tars")
             p = self.tars.persona()
-            return (f"TARS mode, confirmed. Honesty, {p['honesty']} percent. "
-                    f"Humor, {p['humor']} percent."), None
+            return (tars_settings.confirmation({"mode": "tars"}, p)
+                    + f" Honesty, {p['honesty']} percent. Humor, {p['humor']} percent."), None
         if re.fullmatch(r"(switch to |go to |change to |back to )?(claude|clod|cloud|clawed) (mode|personality)|be yourself", t):
-            self.tars.persona(mode="claude")
-            return "Claude mode, confirmed. Back to being myself.", None
+            p = self.tars.persona(mode="claude")
+            return tars_settings.confirmation({"mode": "claude"}, p), None
         m = re.fullmatch(r"(?:set |change |turn )?(?:your )?(honesty|humou?r)(?: setting| level| parameter)?(?: to| at)? (\d{1,3})(?: percent)?", t)
         if m:
             which = "honesty" if m.group(1) == "honesty" else "humor"
             value = int(m.group(2))
             if value > 100:
                 return f"{which.capitalize()} only goes up to 100 percent.", None
-            self.tars.persona(**{which: value})
-            return f"{which.capitalize()} level, {value} percent. Confirmed.", None
+            p = self.tars.persona(**{which: value})
+            return tars_settings.confirmation({which: value}, p), None
         if t in ("new conversation", "start over", "forget that", "forget everything", "reset"):
             self.session = None
             return "Starting fresh.", None

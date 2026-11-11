@@ -131,6 +131,12 @@ class ToolTests(unittest.TestCase):
         self.assertIn("Forgot", gone.content[0].text)
         self.assertIn("empty", empty.content[0].text)
 
+    def test_personality_changes_come_with_a_confirmation_line(self):
+        _, (changed, report) = self.call(("personality", {"humor": 100}), ("personality", {}))
+        self.assertIn('"Humor level, 100 percent. Confirmed."', changed.content[0].text)
+        self.assertNotIn("CHANGED", report.content[0].text)
+        self.call(("personality", {"humor": 75, "mode": "claude"}))
+
     def test_unreachable_tars_is_a_tool_error(self):
         _, (res,) = self.call(("look", {}), url="http://127.0.0.1:9")
         self.assertTrue(is_error(res))

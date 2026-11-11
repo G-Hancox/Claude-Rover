@@ -123,6 +123,8 @@ async def show(text: str, seconds: int = 15) -> str:
 @mcp.tool()
 async def personality(mode: str = "", honesty: int = -1, humor: int = -1) -> str:
     """Read or change who's talking through TARS. With no arguments, just reports.
+    Use it whenever G asks to change the mode or the humor/honesty settings, however he
+    phrases it ("crank up the humor" = raise humor). Always confirm the change to G.
     mode: "claude" (you, as yourself) or "tars" (you playing TARS from Interstellar).
     honesty, humor: TARS's settings, 0-100 (honesty sets bluntness, never truthfulness)."""
     changes = {}
@@ -133,7 +135,12 @@ async def personality(mode: str = "", honesty: int = -1, humor: int = -1) -> str
     if humor >= 0:
         changes["humor"] = int(humor)
     p = await _call(tars.persona, **changes) if changes else await _call(tars.persona)
-    return f"Mode: {p['mode']}.\n" + tars_settings.describe(p)
+    report = f"Mode: {p['mode']}.\n" + tars_settings.describe(p)
+    if changes:
+        line = tars_settings.confirmation(changes, p)
+        return (f"CHANGED. Always confirm to G with exactly this line (say it out loud "
+                f"if you're talking through TARS): \"{line}\"\n\n{report}")
+    return report
 
 
 @mcp.tool()
