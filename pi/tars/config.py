@@ -66,6 +66,8 @@ class Config:
     piper_model: str = "~/tars-voice/TARS.onnx"   # get it with: python3 -m tars.voice download
     piper_speaker: str = "neutral"  # default emotion on multi-speaker voices like TARS
     voice_pace: float = 1.3         # TARS voice speed: 1.0 = as trained, higher = slower
+    voice_steadiness: float = 0.6   # 0 = Piper's natural variation, 1 = every line delivered alike
+    voice_emotions: bool = False    # true = use the emotion voices (they drift from TARS's sound)
     say_max_chars: int = 500
 
     # Screen (5" DSI on the front). Drawn straight to the Linux framebuffer: no desktop needed.
@@ -117,6 +119,8 @@ def load(path=None):
         raise ValueError('persona must be "claude" or "tars"')
     if not 0 < cfg.wake_threshold < 1:
         raise ValueError("wake_threshold must be between 0 and 1")
+    if not isinstance(cfg.voice_steadiness, (int, float)) or not 0 <= cfg.voice_steadiness <= 1:
+        raise ValueError("voice_steadiness must be between 0 and 1")
     if cfg.display_rotate not in (0, 90, 180, 270):
         raise ValueError("display_rotate must be 0, 90, 180 or 270")
     if not all(isinstance(v, int) and 0 <= v <= 100 for v in (cfg.honesty, cfg.humor)):

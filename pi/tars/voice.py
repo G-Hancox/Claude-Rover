@@ -4,6 +4,7 @@
   python3 -m tars.voice test "Hello"      say something in it   (add --emotion joy, etc.)
   python3 -m tars.voice save "Hello" out.wav
   add --pace 1.3 to try a different speed (higher = slower) before setting voice_pace
+  add --steady 0.8 to try a steadier delivery (0-1) before setting voice_steadiness
 
 The voice is the TARS-AI community's Piper model, trained on TARS's lines from
 *Interstellar* (voiced by Bill Irwin), with one speaker per emotion. It's for this
@@ -62,6 +63,7 @@ def main():
             p.add_argument("out")
         p.add_argument("--emotion", choices=EMOTIONS)
         p.add_argument("--pace", type=float, help="1.0 = as trained, higher = slower")
+        p.add_argument("--steady", type=float, help="0 = natural variation, 1 = every line alike")
         p.add_argument("--config")
     args = ap.parse_args()
 
@@ -75,7 +77,9 @@ def main():
 
     cfg = config_mod.load(args.config)
     engine = PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker,
-                              args.pace if args.pace else cfg.voice_pace)
+                              args.pace if args.pace else cfg.voice_pace,
+                              args.steady if args.steady is not None else cfg.voice_steadiness,
+                              emotions=True)   # --emotion here always works, for trying them out
     if engine.speakers:
         print("Emotions in this voice: " + ", ".join(sorted(engine.speakers)))
     wav = engine.wav(args.text, args.emotion)

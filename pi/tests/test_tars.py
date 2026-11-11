@@ -218,7 +218,7 @@ class ConfigTests(unittest.TestCase):
         config_mod.load(os.path.join(here, "tars.example.json"))
 
     def test_rejects_typos_and_bad_values(self):
-        for bad in ({"left_up_heigth": 200}, {"left_up_height": 700}, {"voice_pace": 5}, {"back_left_leg": "far"},
+        for bad in ({"left_up_heigth": 200}, {"left_up_height": 700}, {"voice_pace": 5}, {"voice_steadiness": 2}, {"back_left_leg": "far"},
                     {"right_leg_channel": 0}, {"easing": 2}, {"tts_engine": "siri"}):
             with self.assertRaises(ValueError, msg=str(bad)):
                 self.load(bad)
@@ -489,20 +489,24 @@ class PiperTests(unittest.TestCase):
 
             if new_api:
                 def synthesize_wav(self, text, w, syn_config=None):
-                    calls.append(("say", text, syn_config.speaker_id, syn_config.length_scale))
+                    calls.append(("say", text, syn_config.speaker_id, syn_config.length_scale,
+                                  syn_config.noise_scale))
                     w.writeframes(b"\0\0" * 10)
             else:
-                def synthesize(self, text, w, speaker_id=None, length_scale=None):
-                    calls.append(("say", text, speaker_id, length_scale))
+                def synthesize(self, text, w, speaker_id=None, length_scale=None, noise_scale=None,
+                               noise_w=None):
+                    calls.append(("say", text, speaker_id, length_scale, noise_scale))
                     w.writeframes(b"\0\0" * 10)
 
         mod = types.ModuleType("piper")
         mod.PiperVoice = Voice
         if new_api:
             class SynthesisConfig:
-                def __init__(self, speaker_id=None, length_scale=None):
+                def __init__(self, speaker_id=None, length_scale=None, noise_scale=None,
+                             noise_w_scale=None):
                     self.speaker_id = speaker_id
                     self.length_scale = length_scale
+                    self.noise_scale = noise_scale
             mod.SynthesisConfig = SynthesisConfig
         sys.modules["piper"] = mod
         self.addCleanup(sys.modules.pop, "piper", None)
@@ -531,6 +535,17 @@ class PiperTests(unittest.TestCase):
             says = [c for c in calls if c[0] == "say"]
             self.assertEqual([c[2] for c in says], [5, 3, 5], new_api)
             self.assertEqual({c[3] for c in says}, {1.2}, "same pace for every emotion")
+            self.assertEqual({c[4] for c in says}, {0.667}, "steadiness 0 = Piper's defaults")
+
+    def test_emotions_off_and_steadiness(self):
+        from tars.audio import PiperVoiceEngine
+        calls = self.fake_piper(True)
+        with tempfile.TemporaryDirectory() as d:
+            eng = PiperVoiceEngine(self.voice_files(d), "neutral", 1.3, steadiness=1.0, emotions=False)
+            eng.wav("Hello", "joy")
+        say = [c for c in calls if c[0] == "say"][0]
+        self.assertEqual(say[2], 5, "emotions off: joy still uses the neutral voice")
+        self.assertLess(say[4], 0.15)
 
     def test_missing_voice_explains_how_to_get_it(self):
         from tars.audio import PiperVoiceEngine

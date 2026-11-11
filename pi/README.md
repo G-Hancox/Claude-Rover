@@ -129,9 +129,13 @@ Then in `tars.json`:
 "piper_model": "~/tars-voice/TARS.onnx"
 ```
 
-The voice has eight emotions: neutral, joy, curiosity, surprise, sadness, anger, fear and
-love. Claude picks one each time it speaks (usually neutral), and the control page has a
-picker.
+The voice has eight emotions (neutral, joy, curiosity, surprise, sadness, anger, fear,
+love), but each is trained on fewer lines than neutral and drifts further from TARS's sound,
+so they're **off by default**: TARS stays in its flat, dry delivery. Set
+`"voice_emotions": true` to use them. `--emotion` on the test command always works, for trying them.
+
+`voice_steadiness` (0-1, default 0.6) turns down Piper's built-in randomness, so lines come
+out consistent. Try `--steady 0.3` and `--steady 0.9` on the test command to compare.
 
 This is the TARS-AI community's Piper voice, trained on TARS's lines from *Interstellar*,
 voiced by the actor Bill Irwin. Keep it to this personal robot: don't post clips of it or
@@ -228,6 +232,8 @@ Anything not in your file keeps its default. All settings are in
 | `tts_engine` | `"espeak"` | `"piper"` for the TARS voice |
 | `piper_model` | `"~/tars-voice/TARS.onnx"` | Where the voice file is |
 | `piper_speaker` | `"neutral"` | Default emotion |
+| `voice_steadiness` | `0.6` | 0 = Piper's natural variation, 1 = every line delivered alike |
+| `voice_emotions` | `false` | Use the emotion voices. Off by default: they drift from TARS's sound |
 | `voice_pace` | `1.3` | TARS voice speed: 1.0 = as trained, higher = slower. Same for every emotion |
 | `display_rotate` | `0` | Turn the screen picture 90, 180 or 270 |
 | `honesty`, `humor` | `90`, `75` | TARS's settings, shown on the idle screen (also changeable by voice) |
