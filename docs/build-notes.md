@@ -5,8 +5,11 @@
 - **Rover first, TARS later.** The rover is the easier build; its software carries over.
 - **Brain on the PC.** The Pi 4 is 2GB, so it only does hardware I/O. Speech-to-text,
   Claude, and text-to-speech run on the PC.
-- **Power:** Milwaukee M12 → fuse block → main switch → buck converter (5V for the Pi)
-  and the ESC / servo rail.
+- **Power: two batteries.**
+  - Drive: car's **2S LiPo → ESC → 12T motor** (in spec: 2S allows 12T–55T). ESC jumper on **LiPo**.
+  - Electronics: **M12 → fuse block → main switch → buck converter (5V)** → Pi, camera, audio, pan/tilt servos.
+  - Keeps motor current spikes and sag away from the Pi.
+  - **Grounds of both systems must be tied together**, or the throttle signal won't read right.
 - **Servos through a PCA9685**, not straight off the GPIO — software PWM on the Pi makes
   servos jitter. The RC car's ESC and steering servo take standard servo signals, so the
   PCA9685 can likely drive them directly.
@@ -19,14 +22,14 @@
 - **Steering:** standard 3-wire servo.
 - **Throttle:** ESC takes a standard 3-wire servo signal.
 - Both go straight to the PCA9685 — no separate motor driver needed.
-- M12 (~12.6V full) counts as 3S → **only OK if the motor is 35T or higher.**
-  If so, set the ESC jumper to **LiPo** so its low-voltage cutoff protects the battery.
+- Stock motor is **12T** → not allowed on 3S, so the M12 does **not** feed the ESC. Drive runs on the car's 2S LiPo.
 - ESC red wire (BEC) can feed the PCA9685 servo rail (V+), **never the Pi**. Common ground everywhere.
 - The pan/tilt MG996Rs may be too much for the ESC's BEC; may need a separate 6V servo supply.
 
 ## Open questions
 
-- [x] Motor turn count: **12T** — too low for 3S on this ESC. Plan: swap to a 35T–55T brushed motor (~45T), same can size (likely 540), reuse pinion.
+- [x] Motor turn count: **12T** → keep it, run drive on 2S LiPo (see Power). Throttle limit in software anyway.
+- [ ] Check LiPo packs: no puffing, ≥3.0V per cell, balance charge before use.
 - [ ] Does the existing buck converter pass the load test?
 
 ## Things to watch

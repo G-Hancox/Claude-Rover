@@ -3,7 +3,8 @@
 ## Already have
 
 - [x] Raspberry Pi 4 (2GB) + microSD card
-- [x] Milwaukee M12 batteries
+- [x] Milwaukee M12 batteries (electronics)
+- [x] Car's 2S LiPo packs (drive) + balance charger
 - [x] Buck converter (12V → 5V) — **must pass load test** (see below)
 - [x] Fuse block
 - [x] Donor RC car — drive motor, steering, tires *(model TBD)*
@@ -21,8 +22,6 @@
 - [ ] MAX98357A I2S amp board
 - [ ] Small 3W 4Ω speaker
 - [ ] USB mini mic
-
-- [ ] Brushed motor, 35T–55T (~45T), same can size as stock (likely 540) — stock is 12T, not 3S-safe
 
 ## Maybe (depends on tests / RC car)
 
