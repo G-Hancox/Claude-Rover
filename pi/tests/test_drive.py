@@ -4,6 +4,7 @@ import unittest
 import urllib.error
 import urllib.request
 
+from rover.camera import FrameBuffer, MockCamera
 from rover.config import Config
 from rover.drive import Drive
 from rover.pca9685 import MockPCA9685
@@ -111,13 +112,15 @@ class DriveTests(unittest.TestCase):
 class ServerTests(unittest.TestCase):
     def setUp(self):
         self.d, self.pwm, self.clock, self.cfg = make(arm_s=0)
-        self.server = make_server(self.d, "127.0.0.1", 0, token="secret")
+        self.camera = MockCamera(fps=50)
+        self.server = make_server(self.d, "127.0.0.1", 0, token="secret", camera=self.camera)
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
 
     def tearDown(self):
         self.server.shutdown()
         self.server.server_close()
+        self.camera.close()
 
     def post(self, path, body, token="secret"):
         req = urllib.request.Request(self.url + path, data=body, method="POST",
@@ -149,6 +152,54 @@ class ServerTests(unittest.TestCase):
     def test_page_loads(self):
         with urllib.request.urlopen(self.url + "/") as r:
             self.assertIn(b"Claude Rover", r.read())
+
+    def test_snapshot_is_a_jpeg(self):
+        with urllib.request.urlopen(self.url + "/snapshot.jpg") as r:
+            self.assertEqual(r.headers["Content-Type"], "image/jpeg")
+            self.assertEqual(r.read()[:2], b"\xff\xd8")
+
+    def test_stream_sends_successive_frames(self):
+        with urllib.request.urlopen(self.url + "/stream.mjpg") as r:
+            self.assertIn("multipart/x-mixed-replace", r.headers["Content-Type"])
+            data = r.read(30000)
+        self.assertGreaterEqual(data.count(b"--FRAME"), 2)
+        self.assertIn(b"\xff\xd8", data)
+
+    def test_driving_still_works_while_streaming(self):
+        stream = urllib.request.urlopen(self.url + "/stream.mjpg")
+        try:
+            stream.read(2000)
+            self.assertEqual(self.post("/drive", b'{"throttle": 0.2}')[0], 200)
+            self.assertEqual(self.post("/stop", b"")[0], 200)
+        finally:
+            stream.close()
+
+
+class NoCameraTests(unittest.TestCase):
+    def test_no_camera_gives_503_not_a_crash(self):
+        d, pwm, clock, cfg = make(arm_s=0)
+        server = make_server(d, "127.0.0.1", 0)
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            for path in ("/snapshot.jpg", "/stream.mjpg"):
+                with self.assertRaises(urllib.error.HTTPError) as cm:
+                    urllib.request.urlopen(url + path)
+                self.assertEqual(cm.exception.code, 503)
+            with urllib.request.urlopen(url + "/status") as r:
+                self.assertFalse(json.loads(r.read())["camera"])
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
+class FrameBufferTests(unittest.TestCase):
+    def test_wait_times_out_then_delivers(self):
+        fb = FrameBuffer()
+        self.assertIsNone(fb.wait_frame(0, timeout=0.05))
+        fb.write(b"abc")
+        self.assertEqual(fb.wait_frame(0, timeout=0.05), (1, b"abc"))
+        self.assertIsNone(fb.wait_frame(1, timeout=0.05))
 
 
 if __name__ == "__main__":

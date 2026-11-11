@@ -8,6 +8,7 @@
   body { font-family: system-ui, sans-serif; background: #14171a; color: #e8e8e8; margin: 0;
          display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; }
   h1 { font-size: 1.2rem; margin: 0; }
+  #video { width: min(92vw, 640px); border-radius: 12px; background: #000; display: none; }
   #pad { width: min(80vw, 340px); aspect-ratio: 1; background: #22272c; border: 2px solid #3a424a;
          border-radius: 16px; position: relative; touch-action: none; }
   #pad::before, #pad::after { content: ""; position: absolute; background: #3a424a; }
@@ -24,6 +25,7 @@
 </head>
 <body>
 <h1>Claude Rover</h1>
+<img id="video" alt="Rover camera">
 <div id="pad"><div id="dot"></div></div>
 <button id="stop">STOP</button>
 <div id="status">connecting…</div>
@@ -81,10 +83,17 @@ addEventListener('keyup', e => { const k = keymap[e.key]; if (k) { keys.delete(k
 addEventListener('blur', stop);
 document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
 
+const video = document.getElementById('video');
+let videoOn = false;
+function startVideo() { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
+video.addEventListener('error', () => { videoOn = false; video.style.display = 'none'; });
+function checkVideo(s) { if (s.camera && !videoOn) startVideo(); return s; }
+
 // The rover stops by itself if these stop arriving.
 setInterval(() => {
   if (active) post('/drive', {throttle, steering});
-  else fetch('/status').then(r => r.json()).then(show).catch(offline);
+  else fetch('/status').then(r => r.json()).then(checkVideo).then(show)
+    .catch(() => { videoOn = false; offline(); });
 }, 100);
 </script>
 </body>

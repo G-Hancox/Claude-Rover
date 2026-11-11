@@ -34,6 +34,14 @@ class Config:
     # Hold neutral this long at startup so the ESC can arm.
     arm_s: float = 2.0
 
+    # Camera. 640x480 at 15 fps is easy on a 2GB Pi 4 and on Wi-Fi.
+    camera_enabled: bool = True
+    camera_width: int = 640
+    camera_height: int = 480
+    camera_fps: int = 15
+    camera_hflip: bool = False
+    camera_vflip: bool = False
+
     loop_hz: float = 50.0
     host: str = "0.0.0.0"
     port: int = 8080

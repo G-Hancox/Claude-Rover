@@ -1,7 +1,7 @@
 # pi/ — runs on the rover
 
-Drive code for the Raspberry Pi 4: steering and throttle through the PCA9685, a speed cap,
-and a failsafe that stops the rover if it loses contact.
+Code for the Raspberry Pi 4: steering and throttle through the PCA9685, a speed cap,
+a failsafe that stops the rover if it loses contact, and a live camera stream.
 
 > Written before the hardware arrived. It passes its tests against a simulated servo board,
 > but it has **not** run on the real rover yet.
@@ -22,6 +22,8 @@ The Pi's ground, the PCA9685's ground and the ESC's ground must all be connected
 ```bash
 sudo raspi-config          # Interface Options → I2C → enable
 sudo apt install -y python3-smbus2 i2c-tools git
+sudo apt install -y python3-picamera2 --no-install-recommends   # camera
+rpicam-hello --list-cameras   # should list the Camera Module 3
 i2cdetect -y 1             # should show 40
 git clone https://github.com/G-Hancox/Claude-Rover.git
 cd Claude-Rover/pi
@@ -38,6 +40,21 @@ cd Claude-Rover/pi
 5. Open `http://<pi-address>:8080` on a phone or PC and drive from the pad.
 
 To try the page with no hardware at all: `python3 -m rover --mock`
+
+## Camera
+
+The test page shows the live video above the drive pad. Defaults are 640x480 at 15 fps,
+which is light on a 2GB Pi 4 and on Wi-Fi. Settings for `rover.json`:
+
+| Setting | Default | |
+|---|---|---|
+| `camera_enabled` | `true` | Set `false` to run without a camera |
+| `camera_width`, `camera_height` | `640`, `480` | |
+| `camera_fps` | `15` | |
+| `camera_hflip`, `camera_vflip` | `false` | Flip if the camera is mounted upside down |
+
+If the camera is missing or fails to start, the rover prints a message and still drives.
+The video is delayed by a fraction of a second, so drive slower than feels necessary.
 
 ## Safety behaviour
 
@@ -59,12 +76,14 @@ and be ready to grab the rover. See `docs/build-notes.md`.
 | Request       | Body                                 | Does                 |
 |---------------|--------------------------------------|----------------------|
 | `GET /status` |                                      | Current state (JSON) |
+| `GET /stream.mjpg` |                                 | Live video (MJPEG)   |
+| `GET /snapshot.jpg` |                                | One still frame      |
 | `POST /drive` | `{"throttle": -1..1, "steering": -1..1}` | Set the sticks   |
 | `POST /stop`  |                                      | Stop now             |
 
-There is no login. Anyone on your Wi-Fi can drive it. To require a password, set
+There is no login. Anyone on your Wi-Fi can drive it and watch the camera. To require a password, set
 `ROVER_TOKEN=something` before starting; POSTs must then send it as an `X-Rover-Token`
-header (the built-in test page doesn't do this yet).
+header (the built-in test page doesn't do this yet). The token does not cover the video.
 
 ## Start at boot (optional)
 
