@@ -32,9 +32,9 @@ mcp = Server("tars", instructions=(
 _whisper = None
 
 
-async def _call(fn, *args):
+async def _call(fn, *args, **kwargs):
     try:
-        return await asyncio.to_thread(fn, *args)
+        return await asyncio.to_thread(fn, *args, **kwargs)
     except TarsError as e:
         raise ToolError(str(e)) from None  # the message reaches Claude as the tool's error
 
