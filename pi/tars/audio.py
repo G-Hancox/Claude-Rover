@@ -51,7 +51,7 @@ def run_pipeline(first, second, data, timeout=90):
 class PiperVoiceEngine:
     """A Piper voice loaded once and kept in memory. Works with old and new piper-tts."""
 
-    def __init__(self, model_path, default_speaker="neutral"):
+    def __init__(self, model_path, default_speaker="neutral", length_scale=1.0):
         model_path = os.path.expanduser(model_path)
         if not os.path.isfile(model_path):
             raise RuntimeError(f"Piper voice not found at {model_path} "
@@ -63,6 +63,7 @@ class PiperVoiceEngine:
         self.speakers = dict(meta.get("speaker_id_map") or {})
         self.sample_rate = int(meta.get("audio", {}).get("sample_rate", 22050))
         self.default_speaker = self.speaker_id(default_speaker)
+        self.length_scale = float(length_scale)  # above 1 = slower, the same for every emotion
         try:
             from piper import PiperVoice
         except ImportError:
@@ -90,14 +91,15 @@ class PiperVoiceEngine:
             if hasattr(self._voice, "synthesize_wav"):  # piper-tts 1.3 and later
                 try:
                     from piper import SynthesisConfig
-                    cfg = SynthesisConfig(speaker_id=sid)
+                    cfg = SynthesisConfig(speaker_id=sid, length_scale=self.length_scale)
                     self._voice.synthesize_wav(text, w, syn_config=cfg)
                 except ImportError:
                     if sid is not None:
                         self._voice.config.speaker_id = sid
+                    self._voice.config.length_scale = self.length_scale
                     self._voice.synthesize_wav(text, w)
             else:  # piper-tts 1.2
-                self._voice.synthesize(text, w, speaker_id=sid)
+                self._voice.synthesize(text, w, speaker_id=sid, length_scale=self.length_scale)
         return buf.getvalue()
 
 
@@ -108,7 +110,7 @@ class Speaker:
         missing = [n for n in need if not shutil.which(n)]
         if missing:
             raise RuntimeError(f"not installed: {', '.join(missing)}")
-        self._piper = (PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker)
+        self._piper = (PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker, cfg.voice_pace)
                        if cfg.tts_engine == "piper" else None)
         self._start()
 

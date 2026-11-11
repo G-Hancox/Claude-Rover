@@ -116,7 +116,11 @@ the picture is sideways or upside down, set `display_rotate` (90, 180 or 270).
 python3 -m tars.voice download                  # about 60 MB, into ~/tars-voice
 ~/tars-venv/bin/python3 -m tars.voice test "Hello. I'm ready." --config tars.json
 ~/tars-venv/bin/python3 -m tars.voice test "That's great news" --emotion joy --config tars.json
+~/tars-venv/bin/python3 -m tars.voice save "Testing my pace." pace.wav --pace 1.3
 ```
+
+`--pace` tries a speed without changing anything (higher is slower). When you like one,
+put it in `tars.json` as `"voice_pace"`.
 
 Then in `tars.json`:
 
@@ -205,6 +209,7 @@ Anything not in your file keeps its default. All settings are in
 | `tts_engine` | `"espeak"` | `"piper"` for the TARS voice |
 | `piper_model` | `"~/tars-voice/TARS.onnx"` | Where the voice file is |
 | `piper_speaker` | `"neutral"` | Default emotion |
+| `voice_pace` | `1.15` | TARS voice speed: 1.0 = as trained, higher = slower. Same for every emotion |
 | `display_rotate` | `0` | Turn the screen picture 90, 180 or 270 |
 | `honesty`, `humor` | `90`, `75` | The idle screen readout |
 | `camera_enabled`, `speaker_enabled`, `mic_enabled`, `display_enabled` | `true` | Turn a part off |

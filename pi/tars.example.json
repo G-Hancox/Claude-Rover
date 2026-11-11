@@ -17,6 +17,7 @@
   "tts_engine": "espeak",
   "piper_model": "~/tars-voice/TARS.onnx",
   "piper_speaker": "neutral",
+  "voice_pace": 1.15,
 
   "display_rotate": 0,
   "audio_out_device": "default",

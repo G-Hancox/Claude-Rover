@@ -62,6 +62,7 @@ class Config:
     tts_engine: str = "espeak"      # "espeak", or "piper" for the TARS voice
     piper_model: str = "~/tars-voice/TARS.onnx"   # get it with: python3 -m tars.voice download
     piper_speaker: str = "neutral"  # default emotion on multi-speaker voices like TARS
+    voice_pace: float = 1.15        # TARS voice speed: 1.0 = as trained, higher = slower
     say_max_chars: int = 500
 
     # Screen (5" DSI on the front). Drawn straight to the Linux framebuffer: no desktop needed.
@@ -98,6 +99,8 @@ def load(path=None):
         raise ValueError("move_time_scale must be above 0 and easing between 0 and 1")
     if cfg.tts_engine not in ("espeak", "piper"):
         raise ValueError('tts_engine must be "espeak" or "piper"')
+    if not isinstance(cfg.voice_pace, (int, float)) or not 0.5 <= cfg.voice_pace <= 2.0:
+        raise ValueError("voice_pace must be between 0.5 and 2.0 (1.0 = normal, higher = slower)")
     if cfg.display_rotate not in (0, 90, 180, 270):
         raise ValueError("display_rotate must be 0, 90, 180 or 270")
     if not all(isinstance(v, int) and 0 <= v <= 100 for v in (cfg.honesty, cfg.humor)):
