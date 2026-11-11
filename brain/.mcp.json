@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "rover": {
+      "command": "python",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/rover_mcp.py"],
+      "env": {
+        "ROVER_URL": "${ROVER_URL:-http://rover.local:8080}",
+        "ROVER_TOKEN": "${ROVER_TOKEN:-}"
+      }
+    }
+  }
+}

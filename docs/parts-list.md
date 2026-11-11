@@ -18,7 +18,7 @@
 - [ ] 2× metal-gear servos (MG996R size) — camera pan & tilt
 - [ ] M12 battery adapter with wire leads
 - [ ] Main power switch
-- [ ] Distance sensor — VL53L1X, or HC-SR04 ultrasonic (plus a 1kΩ and a 2kΩ resistor for its Echo pin)
+- [ ] HC-SR04 ultrasonic distance sensor, plus a 1kΩ and a 2kΩ resistor for its Echo pin
 - [ ] MAX98357A I2S amp board
 - [ ] Small 3W 4Ω speaker
 - [ ] USB mini mic

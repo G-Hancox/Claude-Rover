@@ -29,8 +29,8 @@
 ## Open questions
 
 - [x] Motor turn count: **12T** → keep it, run drive on 2S LiPo (see Power). Throttle limit in software anyway.
-- [ ] Which distance sensor: HC-SR04 (needs a 1kΩ + 2kΩ divider on Echo) or VL53L1X
-- [ ] How the PC brain reaches Claude: API key or Claude Code
+- [x] Distance sensor: **HC-SR04** (needs a 1kΩ + 2kΩ divider on Echo). Set `"distance_sensor": "hcsr04"` once fitted.
+- [x] PC brain reaches Claude through **Claude Code** on the subscription.
 - [ ] Check LiPo packs: no puffing, ≥3.0V per cell, balance charge before use.
 - [ ] Does the existing buck converter pass the load test?
 
@@ -56,10 +56,10 @@
   - PCA9685 channels: 0 steering, 1 ESC, 2 pan, 3 tilt.
   - Voice out runs on the Pi (espeak by default, Piper optional). Voice in: the Pi records
     and hands the PC a WAV; speech-to-text happens on the PC.
-- `brain/` — **not started.** PC side: speech-to-text, Claude, and the loop that looks
-  through `/snapshot.jpg`, listens through `/listen`, talks through `/say` and drives.
-  Open decision first: how the PC reaches Claude (paid API key vs. Claude Code on the
-  subscription).
+- `brain/` — **written, tested against a simulated rover only.** Claude Code on the
+  subscription (no API bill) with a small tool server: look, drive, stop, point_camera,
+  say, listen. Speech-to-text is faster-whisper on the PC. Claude drives in short
+  look-move-look steps, not continuously. See [`brain/README.md`](../brain/README.md).
 
 ## Later: TARS body
 
