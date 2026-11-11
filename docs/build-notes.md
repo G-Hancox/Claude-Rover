@@ -34,6 +34,12 @@
 
 ## Things to watch
 
+- **Pi freeze = runaway risk.** The PCA9685 keeps sending its last pulse if the Pi hangs, so the
+  software failsafe can't cover that case. Fix later with a hardware cutoff: e.g. wire the
+  board's OE pin so outputs drop unless the Pi keeps a heartbeat going, which makes the ESC
+  see "no signal" and stop. Until then: low speed cap.
+- **ESC BEC vs. Pi.** The ESC's red wire powers the servo rail only.
+
 - **Motor noise vs. mic.** Speech recognition won't work well while driving. Start with
   "stop to talk"; a wake word can come later.
 - **Mic and speaker placement.** Keep them apart so the rover doesn't hear itself, and

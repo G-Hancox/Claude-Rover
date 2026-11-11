@@ -1,0 +1,14 @@
+[Unit]
+Description=Claude Rover drive server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/Claude-Rover/pi
+ExecStart=/usr/bin/python3 -m rover --config rover.json
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

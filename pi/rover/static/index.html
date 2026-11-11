@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Claude Rover</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #14171a; color: #e8e8e8; margin: 0;
+         display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; }
+  h1 { font-size: 1.2rem; margin: 0; }
+  #pad { width: min(80vw, 340px); aspect-ratio: 1; background: #22272c; border: 2px solid #3a424a;
+         border-radius: 16px; position: relative; touch-action: none; }
+  #pad::before, #pad::after { content: ""; position: absolute; background: #3a424a; }
+  #pad::before { left: 50%; top: 0; bottom: 0; width: 1px; }
+  #pad::after { top: 50%; left: 0; right: 0; height: 1px; }
+  #dot { width: 44px; height: 44px; border-radius: 50%; background: #8fd14f; position: absolute;
+         left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  #stop { width: min(80vw, 340px); padding: 18px; font-size: 1.2rem; font-weight: 700; color: #fff;
+          background: #c0392b; border: 0; border-radius: 12px; }
+  #status { font-family: ui-monospace, monospace; font-size: .9rem; text-align: center; min-height: 3em; }
+  .warn { color: #f5b041; }
+  small { color: #9aa4ad; }
+</style>
+</head>
+<body>
+<h1>Claude Rover</h1>
+<div id="pad"><div id="dot"></div></div>
+<button id="stop">STOP</button>
+<div id="status">connecting…</div>
+<small>Drag the pad, or use the arrow keys / WASD. Space = stop.</small>
+<script>
+const pad = document.getElementById('pad'), dot = document.getElementById('dot');
+const statusEl = document.getElementById('status');
+let throttle = 0, steering = 0, active = false;
+const keys = new Set();
+
+function post(path, body) {
+  return fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(body || {})}).then(r => r.json()).then(show).catch(offline);
+}
+function show(s) {
+  const flags = [];
+  if (!s.armed) flags.push('arming…');
+  if (s.failsafe) flags.push('idle');
+  if (s.forward_blocked) flags.push('obstacle ahead');
+  statusEl.innerHTML = `throttle ${s.throttle.toFixed(2)} &nbsp; steering ${s.steering.toFixed(2)}<br>` +
+    `cap ${Math.round(s.max_forward * 100)}% fwd / ${Math.round(s.max_reverse * 100)}% rev` +
+    (flags.length ? `<br><span class="warn">${flags.join(' · ')}</span>` : '');
+}
+function offline() { statusEl.innerHTML = '<span class="warn">no connection to rover</span>'; }
+function setDot() {
+  dot.style.left = (50 + steering * 50) + '%';
+  dot.style.top = (50 - throttle * 50) + '%';
+}
+function stop() { active = false; throttle = steering = 0; keys.clear(); setDot(); post('/stop'); }
+
+function fromPointer(e) {
+  const r = pad.getBoundingClientRect();
+  steering = Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width) * 2 - 1));
+  throttle = Math.max(-1, Math.min(1, 1 - ((e.clientY - r.top) / r.height) * 2));
+  setDot();
+}
+pad.addEventListener('pointerdown', e => { pad.setPointerCapture(e.pointerId); active = true; fromPointer(e); });
+pad.addEventListener('pointermove', e => { if (active && keys.size === 0) fromPointer(e); });
+pad.addEventListener('pointerup', stop);
+pad.addEventListener('pointercancel', stop);
+document.getElementById('stop').addEventListener('click', stop);
+
+const keymap = {ArrowUp: 'f', w: 'f', ArrowDown: 'b', s: 'b', ArrowLeft: 'l', a: 'l', ArrowRight: 'r', d: 'r'};
+function fromKeys() {
+  throttle = (keys.has('f') ? 1 : 0) - (keys.has('b') ? 1 : 0);
+  steering = (keys.has('r') ? 1 : 0) - (keys.has('l') ? 1 : 0);
+  active = keys.size > 0; setDot();
+  if (!active) post('/stop');
+}
+addEventListener('keydown', e => {
+  if (e.key === ' ') { e.preventDefault(); return stop(); }
+  const k = keymap[e.key]; if (k) { e.preventDefault(); keys.add(k); fromKeys(); }
+});
+addEventListener('keyup', e => { const k = keymap[e.key]; if (k) { keys.delete(k); fromKeys(); } });
+addEventListener('blur', stop);
+document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
+
+// The rover stops by itself if these stop arriving.
+setInterval(() => {
+  if (active) post('/drive', {throttle, steering});
+  else fetch('/status').then(r => r.json()).then(show).catch(offline);
+}, 100);
+</script>
+</body>
+</html>
