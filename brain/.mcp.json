@@ -1,11 +1,11 @@
 {
   "mcpServers": {
-    "rover": {
+    "tars": {
       "command": "python",
-      "args": ["${CLAUDE_PROJECT_DIR:-.}/rover_mcp.py"],
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/tars_mcp.py"],
       "env": {
-        "ROVER_URL": "${ROVER_URL:-http://rover.local:8080}",
-        "ROVER_TOKEN": "${ROVER_TOKEN:-}"
+        "TARS_URL": "${TARS_URL:-http://tars.local:8080}",
+        "TARS_TOKEN": "${TARS_TOKEN:-}"
       }
     }
   }

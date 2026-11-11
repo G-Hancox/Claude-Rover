@@ -1,0 +1,14 @@
+[Unit]
+Description=Claude TARS server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/Claude-TARS/pi
+ExecStart=/usr/bin/python3 -m tars --config tars.json
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

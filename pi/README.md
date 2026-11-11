@@ -1,171 +1,193 @@
-# pi/ — runs on the rover
+# pi/ — runs on TARS
 
-Everything the Raspberry Pi 4 does: drive and steering, camera stream, camera pan and tilt,
-obstacle stop, speaker and mic. A PC talks to it over Wi-Fi (see the control API below).
+Everything the Raspberry Pi 4 inside TARS does: the four leg servos, the camera, the
+speaker and the mics, plus a control page you can open on your phone. The PC side
+([`brain/`](../brain/README.md)) talks to it over Wi-Fi.
 
 > Written before the hardware arrived. It passes its tests against simulated hardware,
-> but **none of it has run on the real rover yet.** The parts that talk to real devices
-> (camera, distance sensor, sound) are the most likely to need a tweak on the bench.
+> but **none of it has run on a real TARS yet.** The camera, sound and real move speeds
+> are the most likely to need adjusting on the bench.
+
+## Build first
+
+Print and assemble the body following the
+[TARS-AI V3 guide](https://github.com/TARS-AI-Community/TARS-AI/wiki/V3) — print list in
+[`cad/tars/`](../cad/tars/README.md), shop list in [`docs/parts-list.md`](../docs/parts-list.md).
+Use **this** software instead of theirs where the guide runs `app-servotester.py`
+(see "Fitting the servo horns" below). Everything else in their guide applies as written.
+
+Before connecting any servo, **set the XL4015 buck converter to 6.2V** (guide: electronics step 2).
 
 ## Wiring
 
-**PCA9685 servo board**
-
-| PCA9685            | Goes to                                                |
-|--------------------|--------------------------------------------------------|
-| VCC, SDA, SCL, GND | Pi 3.3V (pin 1), SDA (pin 3), SCL (pin 5), GND (pin 6) |
-| Channel 0          | Steering servo                                         |
-| Channel 1          | ESC throttle lead                                      |
-| Channel 2          | Camera pan servo                                       |
-| Channel 3          | Camera tilt servo                                      |
-| V+ (servo power)   | Fed by the ESC's red wire — **never from the Pi**      |
-
-The Pi's ground, the PCA9685's ground and the ESC's ground must all be connected.
-If the pan/tilt servos make the steering twitch or the ESC cut out, the ESC's built-in
-5–6V supply is too weak for all three servos; give the servo rail its own 6V supply.
-
-**Distance sensor** — mount it on the body facing forward, not on the camera head.
-
-| Sensor | Wiring |
+| Part | Connects to |
 |---|---|
-| HC-SR04 (ultrasonic) | VCC → 5V, GND → GND, Trig → GPIO23 (pin 16), Echo → **voltage divider** → GPIO24 (pin 18). Echo is 5V and the Pi's pins are 3.3V: use 1kΩ from Echo to the pin and 2kΩ from the pin to ground. |
-| VL53L1X (laser) | VIN → 3.3V, GND → GND, SDA and SCL shared with the PCA9685 |
+| PCA9685 VCC, SDA, SCL, GND | Pi 3.3V (pin 1), SDA (pin 3), SCL (pin 5), GND (pin 6) |
+| PCA9685 V+ (servo power) | XL4015 output, 6.2V |
+| Channel 0 | Left leg height servo |
+| Channel 1 | Right leg height servo |
+| Channel 2 | Left leg swing servo |
+| Channel 3 | Right leg swing servo |
+| USB sound card | Any Pi USB port |
+| OV5647 camera | Pi camera connector (15-pin ribbon) |
+| Pi power | 5V USB regulator → Pi USB-C |
 
-**Speaker amp (MAX98357A)** — pin numbers below are from memory of Adafruit's guide for
-this board; check them against that guide before powering up.
-
-| Amp | Pi |
-|---|---|
-| Vin, GND | 5V, GND |
-| LRC | GPIO19 (pin 35) |
-| BCLK | GPIO18 (pin 12) |
-| DIN | GPIO21 (pin 40) |
-
-The USB mic just plugs in.
+Channels match the V3 guide's servo numbers (torso step 4 photo).
 
 ## Setup on the Pi
 
+In Raspberry Pi Imager, pick **Raspberry Pi OS Lite (64-bit)**, and in its settings set the
+hostname to **`tars`**, your Wi-Fi, a username, and turn on SSH. Then, over SSH:
+
 ```bash
 sudo raspi-config          # Interface Options → I2C → enable
-sudo apt install -y python3-smbus2 i2c-tools git
+sudo apt update
+sudo apt install -y git python3-smbus2 i2c-tools
 sudo apt install -y python3-picamera2 --no-install-recommends   # camera
-sudo apt install -y alsa-utils espeak-ng                        # speaker and mic
-sudo apt install -y python3-gpiozero                            # only for the HC-SR04
-i2cdetect -y 1               # should show 40 (and 29 with a VL53L1X)
-rpicam-hello --list-cameras  # should list the Camera Module 3
-git clone https://github.com/G-Hancox/Claude-Rover.git
-cd Claude-Rover/pi
+sudo apt install -y alsa-utils espeak-ng                        # speaker and mics
+i2cdetect -y 1               # should show 40 (the PCA9685)
+rpicam-hello --list-cameras  # should list the OV5647
+git clone https://github.com/G-Hancox/Claude-TARS.git
+cd Claude-TARS/pi
+cp tars.example.json tars.json
 ```
 
-For the speaker amp, add `dtoverlay=max98357a` to `/boot/firmware/config.txt` and reboot.
-Then test sound on its own before involving the rover code:
+If the repo isn't renamed yet, clone `Claude-Rover.git` instead; GitHub redirects old names
+after a rename anyway.
+
+**Test sound on its own** before involving TARS:
 
 ```bash
-aplay -l                      # find the amp;   arecord -l   to find the USB mic
-espeak-ng --stdout "testing" | aplay
-arecord -d 3 -f S16_LE -r 16000 test.wav && aplay test.wav
+aplay -l                      # find the USB sound card
+arecord -l                    # and its mics
+espeak-ng --stdout "testing" | aplay -D plughw:1,0
+arecord -D plughw:1,0 -d 3 -f S16_LE -r 16000 test.wav && aplay -D plughw:1,0 test.wav
 ```
 
-If the default device is wrong, set `audio_out_device` / `audio_in_device` in `rover.json`
-(for example `"plughw:1,0"`).
+Use the card number `aplay -l` shows. Then put it in `tars.json` as
+`"audio_out_device": "plughw:1,0"` and `"audio_in_device": "plughw:1,0"`.
 
-The VL53L1X needs the `vl53l1x` Python package, which is installed with pip rather than apt.
+## Fitting the servo horns (guide torso steps 7–8)
 
-## First run — wheels off the ground
+Where the V3 guide runs `app-servotester.py` → "Set all servos to preset position", run:
 
-1. **Calibrate** each servo. Type pulse widths (start near 1500) and note the values:
-   - `python3 -m rover.calibrate steering` — centre, full left, full right
-   - `python3 -m rover.calibrate throttle` — neutral, and which way is forward
-   - `python3 -m rover.calibrate pan` and `tilt` — centre and how far each can go
-     before the mount binds
-2. Copy `rover.example.json` to `rover.json` and put your numbers in.
-3. **Run it:** `python3 -m rover --config rover.json`
-   The startup lines say which parts came up (camera, pan/tilt, speaker, mic, sensor).
-4. Open `http://<pi-address>:8080` on a phone or PC.
+```bash
+python3 -m tars.calibrate preset
+```
 
-To try the page with no hardware at all: `python3 -m rover --mock`
+All four leg servos hold the assembly position (350, 350, 300, 300 — the same values as
+TARS-AI). Fit the horns as the guide shows without forcing the servos, then press Enter
+and they go limp.
 
-## Settings (`rover.json`)
+## Calibrating the legs
 
-Anything not listed in your file keeps its default. All settings and defaults are in
-[`rover/config.py`](rover/config.py). The ones you're most likely to change:
+Keep TARS on its base with the legs free to move. For each joint:
+
+```bash
+python3 -m tars.calibrate left_height     # then right_height, left_leg, right_leg
+```
+
+Type values (0–600) in small steps and note where each end of travel is, just before
+anything binds. Put them in `tars.json`:
+
+| Setting | Joint end |
+|---|---|
+| `left_up_height`, `left_down_height` | left leg fully up / fully down |
+| `right_up_height`, `right_down_height` | right leg fully up / fully down |
+| `forward_left_leg`, `back_left_leg` | left leg swung fully forward / back |
+| `forward_right_leg`, `back_right_leg` | right leg swung fully forward / back |
+
+The defaults are TARS-AI V3's, so a well-assembled build may only need small changes. The
+TARS-AI [calibration video](https://www.youtube.com/watch?v=We_4mcOO7hI&t=20s) uses the
+same units.
+
+## Running it
+
+```bash
+python3 -m tars --config tars.json
+```
+
+Open **http://tars.local:8080** on your phone. You get the camera, walk buttons (step,
+back, turn), the expressive moves (bow, laugh, tilt, pose…), STOP, Go limp, a Say box and
+a Listen button. Keys on a PC: arrows to walk, Space to stop, L to go limp.
+
+First moves: start with `stand` and `tilt_left` on the base, then `step_forward` on the
+floor. If "turn left" turns right, set `"swap_turns": true`. If moves look too fast or too
+slow, change `move_time_scale` (bigger is slower).
+
+To try the page with no hardware: `python3 -m tars --mock`
+
+## Settings (`tars.json`)
+
+Anything not in your file keeps its default. All settings are in
+[`tars/config.py`](tars/config.py). Besides the leg limits above:
 
 | Setting | Default | |
 |---|---|---|
-| `max_forward`, `max_reverse` | `0.25`, `0.20` | Speed cap, as a fraction of the ESC's range |
-| `distance_sensor` | `"none"` | `"hcsr04"` or `"vl53l1x"` once one is fitted |
-| `distance_stop_m`, `distance_clear_m` | `0.40`, `0.55` | Stop closer than the first; go again past the second |
-| `camera_hflip`, `camera_vflip` | `false` | Flip if the camera is mounted upside down |
+| `move_time_scale` | `1.0` | Bigger = slower moves |
+| `swap_turns` | `false` | Swap left and right turns |
+| `release_after_move` | `true` | Servos go limp after each move |
+| `easing` | `0.6` | 0 = constant speed, 1 = soft starts and stops |
+| `camera_hflip`, `camera_vflip` | `false` | Flip the picture if it's mirrored or upside down |
 | `camera_width`, `camera_height`, `camera_fps` | `640`, `480`, `15` | |
-| `head_speed_per_s` | `1.5` | How fast the camera swings |
-| `tts_engine` | `"espeak"` | `"piper"` for a natural voice (also set `piper_model`) |
 | `audio_out_device`, `audio_in_device` | `"default"` | ALSA device names |
-| `camera_enabled`, `head_enabled`, `speaker_enabled`, `mic_enabled` | `true` | Turn a part off |
+| `tts_engine` | `"espeak"` | `"piper"` for a natural voice (also set `piper_model`) |
+| `camera_enabled`, `speaker_enabled`, `mic_enabled` | `true` | Turn a part off |
 
-**Voice:** espeak is the default because it installs with one command and sounds like a
-robot. For a natural voice, install [Piper](https://github.com/OHF-Voice/piper1-gpl) and a
-voice file, then set `tts_engine` to `"piper"`, `piper_model` to the `.onnx` path and, if
-your Piper is started differently, `piper_bin`. The rover runs
-`<piper_bin> --model <file> --output-raw`; that matches the standalone Piper program, and
-has not been tried against the newer Python package.
+**Voice:** espeak installs with one command and sounds robotic, which suits TARS. For a
+natural voice, install [Piper](https://github.com/OHF-Voice/piper1-gpl) and a voice file,
+then set `tts_engine` to `"piper"` and `piper_model` to the `.onnx` path. TARS runs
+`<piper_bin> --model <file> --output-raw`, which matches the standalone Piper program; it
+hasn't been tried against the newer Python package.
 
-## Safety behaviour
+## How moves behave
 
-- **Speed cap:** full stick only reaches 25% forward / 20% reverse of the ESC's range.
-- **Failsafe:** drive commands must keep arriving (the page sends 10 a second).
-  After 0.5 s of silence the throttle goes to neutral.
-- **Arming:** throttle is held at neutral for 2 s at startup so the ESC can arm.
-- **Ramping:** speed builds gradually; slowing and stopping are instant.
-- **Obstacle stop:** with a distance sensor on, forward throttle is refused inside
-  `distance_stop_m`. Reverse and steering still work so you can back out.
-- **Broken sensor = no forward.** If a sensor is configured and stops answering for a
-  second (or never starts), forward driving is blocked and the page says so.
-- **Extras can't take down driving.** If the camera, speaker, mic or sensor fails, the rover
-  reports it and keeps driving and stopping normally.
-
-**Known gaps**
-
-- If the Pi itself freezes, the PCA9685 keeps sending the last pulse it was given, and
-  software can't fix that. Until there's a hardware cutoff, keep the speed cap low. See
-  `docs/build-notes.md`.
-- The obstacle stop cuts throttle; it does not brake. The rover coasts, and the sensor only
-  looks straight ahead (not behind, not down stairs). The 0.40 m default is a guess to
-  tune on the bench at your chosen speed.
-- Many brushed ESCs brake on the first pull back and only reverse on the second. Check how
-  this one behaves.
-- The video is a fraction of a second behind.
+- **One move at a time.** Each starts and ends standing.
+- **Nothing moves at startup.** Servos stay limp until the first move.
+- **Smooth re-engaging.** Leg positions are saved after each move, so the next one starts
+  from where the servos really are. The very first move ever runs slowly.
+- **STOP** cuts the move short and eases back to standing.
+- **Go limp** cuts servo power immediately. TARS will drop onto its feet.
+- **Servo errors** (for example the PCA9685 losing power) end the move, go limp, and show
+  on the page.
+- There's no distance sensor. Keep it away from table edges.
 
 ## Control API
 
 | Request | Body | Does |
 |---|---|---|
-| `GET /status` | | Everything's current state (JSON) |
+| `GET /status` | | Legs, camera, speaker, mic state (JSON) |
+| `GET /moves` | | The moves, with a line about each |
 | `GET /stream.mjpg` | | Live video (MJPEG) |
 | `GET /snapshot.jpg` | | One still frame |
-| `POST /drive` | `{"throttle": -1..1, "steering": -1..1}` | Set the sticks; repeat at least twice a second |
-| `POST /stop` | | Stop now |
-| `POST /look` | `{"pan": -1..1, "tilt": -1..1}` | Aim the camera (left/down are negative) |
-| `POST /center` | | Camera straight ahead |
-| `POST /say` | `{"text": "..."}` | Speak (up to 500 characters; returns right away) |
+| `POST /move` | `{"name": "step_forward", "times": 1}` | Start a move (returns at once; 409 if busy) |
+| `POST /stop` | | Cut the move short, return to standing |
+| `POST /release` | | Servos limp now |
+| `POST /say` | `{"text": "..."}` | Speak (up to 500 characters; returns at once) |
 | `POST /play` | a WAV file | Play it through the speaker |
-| `POST /listen` | `{"seconds": 1..30}` | Record the mic; returns a 16 kHz mono WAV |
+| `POST /listen` | `{"seconds": 1..30}` | Record the mics; returns a 16 kHz mono WAV |
 
-**There is no login.** Anyone on your Wi-Fi can drive it, watch the camera and listen
-through the mic. To require a password for everything except video, set
-`ROVER_TOKEN=something` before starting; POSTs must then send it as an `X-Rover-Token`
-header. The built-in test page doesn't send it yet, so with a token set the page can only watch.
+**There is no login.** Anyone on your Wi-Fi can move TARS, watch the camera and listen
+through the mics. To require a password for everything except video, set
+`TARS_TOKEN=something` before starting; POSTs must then send it as an `X-TARS-Token`
+header. The phone page doesn't send it yet, so with a token set the page can only watch.
 
 ## Start at boot (optional)
 
 ```bash
-sudo cp claude-rover.service /etc/systemd/system/
-sudo systemctl enable --now claude-rover
+sudo cp claude-tars.service /etc/systemd/system/
+sudo systemctl enable --now claude-tars
 ```
 
-Edit the paths and user in the service file first if the repo isn't in `/home/pi/Claude-Rover`.
+Edit the user and paths in the service file first if they don't match yours.
 
 ## Tests
 
 ```bash
 python3 -m unittest discover -s tests
 ```
+
+## Credits
+
+`tars/moves.py` adapts the leg keyframes from TARS-AI V3 by Charles-Olivier Dion
+(AtomikSpace), CC-BY-NC 4.0. The servo units and channel layout follow the same project.

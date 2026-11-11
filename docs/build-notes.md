@@ -1,68 +1,54 @@
 # Build notes
 
-## Decisions so far
+## Where this is going
 
-- **Rover first, TARS later.** The rover is the easier build; its software carries over.
-- **Brain on the PC.** The Pi 4 is 2GB, so it only does hardware I/O. Speech-to-text,
-  Claude, and text-to-speech run on the PC.
-- **Power: two batteries.**
-  - Drive: car's **2S LiPo → ESC → 12T motor** (in spec: 2S allows 12T–55T). ESC jumper on **LiPo**.
-  - Electronics: **M12 → fuse block → main switch → buck converter (5V)** → Pi, camera, audio, pan/tilt servos.
-  - Keeps motor current spikes and sag away from the Pi.
-  - **Grounds of both systems must be tied together**, or the throttle signal won't read right.
-- **Servos through a PCA9685**, not straight off the GPIO — software PWM on the Pi makes
-  servos jitter. The RC car's ESC and steering servo take standard servo signals, so the
-  PCA9685 can likely drive them directly.
-- **Two-way voice:** I2S amp + speaker for the voice, USB mic for listening.
+**Claude in a TARS body.** We started with a camera rover on an RC car chassis, then
+switched to TARS: it's carried rather than driven outdoors, and walking is just four
+servos. The rover plan is in the git history if it's ever wanted.
 
-## Donor RC car
+The body is the **TARS-AI V3** community design (Charlie Diaz's original, reworked by
+Charles-Olivier Dion / AtomikSpace and the TARS-AI community). Print files are in
+[`cad/tars/`](../cad/tars/README.md); the shop list is [`parts-list.md`](parts-list.md);
+assembly follows the [V3 wiki guide](https://github.com/TARS-AI-Community/TARS-AI/wiki/V3).
 
-- **ESC:** Dynamite DYNS2210 (Horizon Hobby), brushed, jumper for LiPo / NiMH.
-  Rated 5–7 cell NiMH or LiPo: **2S with 12T–55T motors, 3S with 35T–55T motors.**
-- **Steering:** standard 3-wire servo.
-- **Throttle:** ESC takes a standard 3-wire servo signal.
-- Both go straight to the PCA9685 — no separate motor driver needed.
-- Stock motor is **12T** → not allowed on 3S, so the M12 does **not** feed the ESC. Drive runs on the car's 2S LiPo.
-- ESC red wire (BEC) can feed the PCA9685 servo rail (V+), **never the Pi**. Common ground everywhere.
-- The pan/tilt MG996Rs may be too much for the ESC's BEC; may need a separate 6V servo supply.
+## Decisions
+
+- **Legs-only build first.** The arms add 6 servos and a lot of weight; they can come later.
+- **Our own software, not the TARS-AI app.** Their app runs everything on a Pi 5 and uses
+  OpenAI. Ours keeps the Pi 4 (2GB) doing hardware only, and the brain is Claude Code on
+  the PC, on the existing subscription.
+- **Same servo numbering and units as TARS-AI V3**, so their build guide, calibration
+  video and community help all apply:
+  - channel 0 left leg height, 1 right leg height, 2 left leg swing, 3 right leg swing
+  - servo values 0–600 (= 500–2500 µs pulses), same as their `config.ini`
+- **Walking keyframes adapted from TARS-AI V3** (`pi/tars/moves.py`, CC-BY-NC 4.0).
+- **Power as designed:** 12V Li-ion pack inside → switch → XL4015 set to **6.2V** for the
+  servos, and a 5V USB regulator for the Pi.
+- **Audio through the USB sound card** (speakers and mics on one board).
+- **No screen to start.** Use the no-screen upper lid; add a screen later if wanted.
+- **No distance sensor.** TARS walks slowly and Claude judges distance from the camera.
+
+## Safety, as built
+
+- Moves are finite and end standing. There's no "keep going" signal to lose, so dropped
+  Wi-Fi can't leave TARS walking.
+- Servos go limp between moves (cooler and quieter; TARS rests on its feet).
+- STOP eases back to standing; "Go limp" cuts servo power at once.
+- Leg positions are saved after each move, so the next move picks up where the servos
+  actually are instead of snapping.
 
 ## Open questions
 
-- [x] Motor turn count: **12T** → keep it, run drive on 2S LiPo (see Power). Throttle limit in software anyway.
-- [x] Distance sensor: **HC-SR04** (needs a 1kΩ + 2kΩ divider on Echo). Set `"distance_sensor": "hcsr04"` once fitted.
-- [x] PC brain reaches Claude through **Claude Code** on the subscription.
-- [ ] Check LiPo packs: no puffing, ≥3.0V per cell, balance charge before use.
-- [ ] Does the existing buck converter pass the load test?
+- [ ] Real move timing. The speeds are a guess at matching TARS-AI's; adjust
+      `move_time_scale` once it's walking.
+- [ ] Does `upper_lid_no_screen.stl` have the camera mount? (Check in the slicer.)
+- [ ] Turn direction on the real build: if "turn left" turns right, set `swap_turns`.
 
 ## Things to watch
 
-- **Pi freeze = runaway risk.** The PCA9685 keeps sending its last pulse if the Pi hangs, so the
-  software failsafe can't cover that case. Fix later with a hardware cutoff: e.g. wire the
-  board's OE pin so outputs drop unless the Pi keeps a heartbeat going, which makes the ESC
-  see "no signal" and stop. Until then: low speed cap.
-- **ESC BEC vs. Pi.** The ESC's red wire powers the servo rail only.
-
-- **Motor noise vs. mic.** Speech recognition won't work well while driving. Start with
-  "stop to talk"; a wake word can come later.
-- **Mic and speaker placement.** Keep them apart so the rover doesn't hear itself, and
-  keep the speaker away from the drive motor's gear whine.
-- **12V on the ESC.** Many RC cars are built for 7.2V packs.
-
-## Software
-
-- `pi/` — **written, untested on hardware.** Python on Pi OS Lite: drive, steering, camera
-  stream, pan/tilt, obstacle stop, speaker and mic, all behind one small web API. Setup,
-  wiring and the API are in [`pi/README.md`](../pi/README.md).
-  - PCA9685 channels: 0 steering, 1 ESC, 2 pan, 3 tilt.
-  - Voice out runs on the Pi (espeak by default, Piper optional). Voice in: the Pi records
-    and hands the PC a WAV; speech-to-text happens on the PC.
-- `brain/` — **written, tested against a simulated rover only.** Claude Code on the
-  subscription (no API bill) with a small tool server: look, drive, stop, point_camera,
-  say, listen. Speech-to-text is faster-whisper on the PC. Claude drives in short
-  look-move-look steps, not continuously. See [`brain/README.md`](../brain/README.md).
-
-## Later: TARS body
-
-Charlie Diaz's TARS replica (CAD and code on Hackster) and the GPTARS fork use the same
-PCA9685 board and a similar battery voltage, so the `pi/` and `brain/` code should carry
-over to a walking body. That project is non-commercial-only.
+- **Calibrate before walking.** Fit the servo horns at the preset position
+  (`python3 -m tars.calibrate preset`), then find each joint's limits.
+- **6.2V on the servo rail, not 12V.** Set the XL4015 before connecting any servo.
+- **Camera cable:** the Pi 4 needs a 15-pin ribbon.
+- **Pi 4 heat** inside a closed torso; a heatsink or fan helps.
+- **Floors:** walking needs flat, firm floors. Carry it outside.

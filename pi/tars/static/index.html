@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude TARS</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; background: #14171a; color: #e8e8e8; margin: 0;
+         display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 16px; }
+  h1 { font-size: 1.2rem; margin: 0; letter-spacing: .1em; }
+  #video { width: min(92vw, 640px); border-radius: 12px; background: #000; display: none; }
+  .panel { width: min(92vw, 640px); display: flex; flex-direction: column; gap: 8px; }
+  .label { font-size: .8rem; color: #9aa4ad; text-transform: uppercase; letter-spacing: .08em; }
+  #dpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  #moves { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+  button, input { font: inherit; border-radius: 10px; border: 0; padding: 12px 10px; }
+  button { background: #3a424a; color: #fff; }
+  button:disabled { opacity: .45; }
+  button.go { background: #2e6b3f; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; min-width: 0; background: #22272c; color: #e8e8e8; border: 1px solid #3a424a; }
+  #stop { flex: 2; padding: 16px; font-size: 1.1rem; font-weight: 700; background: #c0392b; }
+  #release { flex: 1; background: #7d3c98; }
+  #status { font-family: ui-monospace, monospace; font-size: .9rem; text-align: center; min-height: 3em; }
+  .warn { color: #f5b041; }
+  small { color: #9aa4ad; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<h1>CLAUDE · TARS</h1>
+<img id="video" alt="TARS camera">
+
+<div class="panel">
+  <span class="label">Walk</span>
+  <div id="dpad">
+    <button data-move="turn_left" class="go">↺ Turn left</button>
+    <button data-move="step_forward" class="go">↑ Step</button>
+    <button data-move="turn_right" class="go">↻ Turn right</button>
+    <button data-move="turn_left_slow">↺ Gentle</button>
+    <button data-move="step_backward">↓ Back</button>
+    <button data-move="turn_right_slow">↻ Gentle</button>
+  </div>
+</div>
+
+<div class="panel">
+  <span class="label">Moves</span>
+  <div id="moves"></div>
+</div>
+
+<div class="panel">
+  <div class="row">
+    <button id="stop">STOP</button>
+    <button id="release" title="Servos go limp immediately">Go limp</button>
+  </div>
+</div>
+
+<div class="panel">
+  <form class="row" id="sayform" hidden>
+    <input id="saytext" maxlength="500" placeholder="Type something for TARS to say" autocomplete="off">
+    <button>Say</button>
+  </form>
+  <button id="listen" hidden>Listen for 5 seconds and play it back</button>
+  <audio id="playback" hidden></audio>
+</div>
+
+<div id="status">connecting…</div>
+<small>Keys: ↑ step · ↓ back · ← → turn · Space stop · L go limp.<br>
+STOP finishes by standing up. Go limp drops the servos at once.</small>
+
+<script>
+const $ = id => document.getElementById(id);
+const statusEl = $('status'), video = $('video');
+let videoOn = false, typing = false, moving = false;
+const SKIP = new Set(['step_forward', 'step_backward', 'turn_left', 'turn_right', 'turn_left_slow', 'turn_right_slow']);
+
+function post(path, body) {
+  return fetch(path, {method: 'POST', headers: {'Content-Type': 'application/json'},
+                      body: JSON.stringify(body || {})})
+    .then(r => r.json().then(j => { if (!r.ok) throw new Error(j.error || r.status); return j; }));
+}
+function nice(name) { return name.replace(/_/g, ' '); }
+function move(name) {
+  post('/move', {name}).then(poll).catch(e => flash(e.message));
+}
+function flash(msg) { statusEl.innerHTML = `<span class="warn">${msg}</span>`; }
+
+function show(s) {
+  const l = s.legs;
+  moving = l.moving;
+  document.querySelectorAll('button[data-move]').forEach(b => b.disabled = moving);
+  $('sayform').hidden = !s.speaker;
+  $('listen').hidden = !s.mic;
+  if (s.camera && !videoOn) { videoOn = true; video.src = '/stream.mjpg?' + Date.now(); video.style.display = 'block'; }
+  const flags = [];
+  if (l.error) flags.push('servo error: ' + l.error);
+  if (s.speaker && s.speaker.speaking) flags.push('speaking');
+  if (s.speaker && s.speaker.error) flags.push('speaker error');
+  const state = moving ? `doing: <b>${nice(l.move)}</b>` : (l.released ? 'standing (servos limp)' : 'standing (servos holding)');
+  statusEl.innerHTML = state + (flags.length ? `<br><span class="warn">${flags.join(' · ')}</span>` : '');
+}
+function poll() { return fetch('/status').then(r => r.json()).then(show).catch(() => {
+  videoOn = false; statusEl.innerHTML = '<span class="warn">no connection to TARS</span>'; }); }
+video.addEventListener('error', () => { videoOn = false; video.style.display = 'none'; });
+
+fetch('/moves').then(r => r.json()).then(list => {
+  for (const m of list) {
+    if (SKIP.has(m.name)) continue;
+    const b = document.createElement('button');
+    b.textContent = nice(m.name); b.title = m.about; b.dataset.move = m.name;
+    $('moves').appendChild(b);
+  }
+}).catch(() => {});
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-move]');
+  if (b) move(b.dataset.move);
+});
+$('stop').addEventListener('click', () => post('/stop').then(show).catch(e => flash(e.message)));
+$('release').addEventListener('click', () => post('/release').then(show).catch(e => flash(e.message)));
+
+const keys = {ArrowUp: 'step_forward', ArrowDown: 'step_backward', ArrowLeft: 'turn_left', ArrowRight: 'turn_right'};
+addEventListener('keydown', e => {
+  if (typing || e.repeat) return;
+  if (e.key === ' ') { e.preventDefault(); return post('/stop').then(show).catch(() => {}); }
+  if (e.key === 'l' || e.key === 'L') return post('/release').then(show).catch(() => {});
+  if (keys[e.key]) { e.preventDefault(); if (!moving) move(keys[e.key]); }
+});
+
+$('saytext').addEventListener('focus', () => { typing = true; });
+$('saytext').addEventListener('blur', () => { typing = false; });
+$('sayform').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = $('saytext').value.trim();
+  if (!text) return;
+  post('/say', {text}).then(() => { $('saytext').value = ''; }).catch(err => flash(err.message));
+});
+$('listen').addEventListener('click', () => {
+  const b = $('listen'), label = b.textContent;
+  b.disabled = true; b.textContent = 'Listening…';
+  fetch('/listen', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{"seconds": 5}'})
+    .then(r => r.ok ? r.blob() : r.json().then(j => { throw new Error(j.error); }))
+    .then(blob => { const a = $('playback'); a.src = URL.createObjectURL(blob); return a.play(); })
+    .catch(err => flash('Listen failed: ' + err.message))
+    .finally(() => { b.disabled = false; b.textContent = label; });
+});
+
+poll();
+setInterval(poll, 300);
+</script>
+</body>
+</html>

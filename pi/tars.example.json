@@ -1,0 +1,20 @@
+{
+  "left_up_height": 220,
+  "left_down_height": 460,
+  "right_up_height": 460,
+  "right_down_height": 220,
+  "forward_left_leg": 160,
+  "back_left_leg": 460,
+  "forward_right_leg": 460,
+  "back_right_leg": 160,
+
+  "swap_turns": false,
+  "move_time_scale": 1.0,
+
+  "camera_hflip": false,
+  "camera_vflip": false,
+
+  "tts_engine": "espeak",
+  "audio_out_device": "default",
+  "audio_in_device": "default"
+}
