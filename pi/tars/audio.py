@@ -52,7 +52,7 @@ class PiperVoiceEngine:
     """A Piper voice loaded once and kept in memory. Works with old and new piper-tts."""
 
     def __init__(self, model_path, default_speaker="neutral", length_scale=1.0, steadiness=0.0,
-                 emotions=True):
+                 emotions=True, sentence_pause=0.0):
         model_path = os.path.expanduser(model_path)
         if not os.path.isfile(model_path):
             raise RuntimeError(f"Piper voice not found at {model_path} "
@@ -71,6 +71,7 @@ class PiperVoiceEngine:
         self.noise_scale = round(0.667 * (1 - 0.85 * st), 3)
         self.noise_w = round(0.8 * (1 - 0.85 * st), 3)
         self.emotions = emotions
+        self.sentence_pause = max(0.0, min(2.0, float(sentence_pause)))  # seconds of quiet between sentences
         try:
             from piper import PiperVoice
         except ImportError:
@@ -89,6 +90,27 @@ class PiperVoiceEngine:
         return self.speakers.get(str(name), self.speakers.get("neutral"))
 
     def wav(self, text, emotion=None):
+        """Speak text. With sentence_pause, each sentence is made separately and joined with
+        a gap, the way TARS leaves room between lines."""
+        parts = [text]
+        if self.sentence_pause:
+            import re
+            parts = [p for p in re.split(r"(?<=[.!?])\s+", text.strip()) if p] or [text]
+        if len(parts) == 1:
+            return self._wav_one(text, emotion)
+        gap = b"\0\0" * int(self.sample_rate * self.sentence_pause)
+        frames, params = [], None
+        for part in parts:
+            with wave.open(io.BytesIO(self._wav_one(part, emotion))) as w:
+                params = w.getparams()
+                frames.append(w.readframes(w.getnframes()))
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setparams(params)
+            w.writeframes(gap.join(frames))
+        return buf.getvalue()
+
+    def _wav_one(self, text, emotion=None):
         sid = self.speaker_id(emotion) if (emotion and self.emotions) else self.default_speaker
         buf = io.BytesIO()
         with wave.open(buf, "wb") as w:
@@ -122,7 +144,8 @@ class Speaker:
         if missing:
             raise RuntimeError(f"not installed: {', '.join(missing)}")
         self._piper = (PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker, cfg.voice_pace,
-                                        cfg.voice_steadiness, cfg.voice_emotions)
+                                        cfg.voice_steadiness, cfg.voice_emotions,
+                                        cfg.voice_sentence_pause)
                        if cfg.tts_engine == "piper" else None)
         self._start()
 

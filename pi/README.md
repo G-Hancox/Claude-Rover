@@ -233,6 +233,7 @@ Anything not in your file keeps its default. All settings are in
 | `piper_model` | `"~/tars-voice/TARS.onnx"` | Where the voice file is |
 | `piper_speaker` | `"0"` | Which of the voice's 8 speakers TARS uses (0-7). 0 and 2 sound most like TARS |
 | `voice_steadiness` | `0.6` | 0 = Piper's natural variation, 1 = every line delivered alike |
+| `voice_sentence_pause` | `0.5` | Seconds of quiet between sentences (TARS leaves gaps) |
 | `voice_emotions` | `false` | Use the emotion voices. Off by default: they drift from TARS's sound |
 | `voice_pace` | `1.3` | TARS voice speed: 1.0 = as trained, higher = slower. Same for every emotion |
 | `display_rotate` | `0` | Turn the screen picture 90, 180 or 270 |

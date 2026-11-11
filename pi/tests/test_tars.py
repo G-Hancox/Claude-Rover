@@ -547,6 +547,16 @@ class PiperTests(unittest.TestCase):
         self.assertEqual(say[2], 5, "emotions off: joy still uses the neutral voice")
         self.assertLess(say[4], 0.15)
 
+    def test_sentence_pause_joins_sentences_with_quiet(self):
+        from tars.audio import PiperVoiceEngine
+        calls = self.fake_piper(True)
+        with tempfile.TemporaryDirectory() as d:
+            eng = PiperVoiceEngine(self.voice_files(d), "neutral", sentence_pause=0.5)
+            data = eng.wav("Workshop secure. All good! Really?")
+        self.assertEqual([c[1] for c in calls if c[0] == "say"], ["Workshop secure.", "All good!", "Really?"])
+        with wave.open(io.BytesIO(data)) as w:
+            self.assertEqual(w.getnframes(), 3 * 10 + 2 * int(22050 * 0.5))
+
     def test_missing_voice_explains_how_to_get_it(self):
         from tars.audio import PiperVoiceEngine
         with self.assertRaises(RuntimeError) as cm:
