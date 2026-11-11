@@ -26,6 +26,7 @@ import tempfile
 import time
 
 import tars_memory
+import tars_settings
 from tars_client import Tars, TarsError
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -57,14 +58,13 @@ PERSONAS = {
     "claude": """
 You are Claude, speaking as yourself. The robot's body is a TARS replica from Interstellar,
 but you're not playing TARS right now: be your normal, warm, direct self, just brief.
+G's humor and honesty dials still apply to your tone (below), as a lighter touch.
 If G wants the TARS personality, he can say "TARS mode".
 """,
     "tars": """
 For this conversation you're playing TARS, the robot from Interstellar, as a fun character.
 Speak the way TARS does: deadpan, dry, economical, ex-military, unflappable, quietly loyal.
-Short declarative sentences. Your settings: honesty {honesty}%, humor {humor}%.
-Humor sets how often you make dry jokes (0 = none, 100 = constantly). Honesty sets how blunt
-you are, not whether you tell the truth: you never give G false information about real things.
+Short declarative sentences. Your settings are below; play them fully.
 You're Claude underneath; if G sincerely asks what you are, tell him. Don't quote lines from
 the film; be TARS in your own words. If G says "Claude mode", drop the character.
 """,
@@ -170,7 +170,8 @@ class Voice:
         now = self.clock()
         if self.session_mode != persona["mode"] or now - self.last_turn > SESSION_IDLE_S:
             self.session = None
-        system = (VOICE_RULES + PERSONAS[persona["mode"]].format(**persona) + tars_memory.RULES
+        system = (VOICE_RULES + PERSONAS[persona["mode"]].format(**persona)
+                  + "\n## Your settings\n" + tars_settings.describe(persona) + "\n" + tars_memory.RULES
                   + "\n" + tars_memory.for_prompt())
         cmd = [self.claude, "-p", text, "--output-format", "json",
                "--append-system-prompt", system,

@@ -158,8 +158,8 @@ class ClaudeCallTests(unittest.TestCase):
         v.handle("status report")
         system = self.arg(self.claude.calls[0], "--append-system-prompt")
         self.assertIn("playing TARS", system)
-        self.assertIn("humor 60%", system)
-        self.assertIn("never give G false information", system)
+        self.assertIn("Humor 60%", system)
+        self.assertIn("never say anything false", system)
         self.tars.p["mode"] = "claude"
         v.handle("hello")
         self.assertIn("You are Claude, speaking as yourself", self.arg(self.claude.calls[1], "--append-system-prompt"))
@@ -184,6 +184,34 @@ class ClaudeCallTests(unittest.TestCase):
         v.claude = None
         v.handle("hello")
         self.assertIn("can't find Claude Code", self.tars.said[-1][0])
+
+
+class SettingsTests(unittest.TestCase):
+    def test_humor_scales_from_none_to_twisted_with_fixed_limits(self):
+        import tars_settings as ts
+        self.assertIn("No jokes", ts.humor_style(0))
+        self.assertIn("Deadpan", ts.humor_style(50))
+        self.assertIn("twisted", ts.humor_style(100))
+        for level in (0, 50, 100):
+            self.assertIn("never mean-spirited", ts.humor_style(level))
+            self.assertIn("safety", ts.humor_style(level))
+        self.assertEqual(ts.humor_style(250), ts.humor_style(100))
+
+    def test_honesty_is_bluntness_never_lying(self):
+        import tars_settings as ts
+        self.assertIn("diplomatic", ts.honesty_style(20))
+        self.assertIn("Bluntly", ts.honesty_style(100))
+        for level in (0, 100):
+            self.assertIn("never say anything false", ts.honesty_style(level))
+
+    def test_settings_apply_in_claude_mode_too(self):
+        tars = FakeTars()
+        tars.p["humor"] = 100
+        claude = FakeClaude([ok("Hi.")])
+        Voice(tars, claude_cmd="claude", run=claude).handle("hello")
+        system = claude.calls[0][claude.calls[0].index("--append-system-prompt") + 1]
+        self.assertIn("speaking as yourself", system)
+        self.assertIn("twisted", system)
 
 
 class HelperTests(unittest.TestCase):

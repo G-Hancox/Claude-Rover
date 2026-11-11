@@ -81,9 +81,22 @@ Things it handles instantly, without asking Claude:
 | "New conversation" / "Start over" | Forgets the conversation so far |
 
 **The two modes.** In **Claude mode** you're talking to Claude, as itself. In **TARS mode**
-it's still Claude underneath, playing TARS: dry, deadpan, short answers, jokes as often as
-the humor setting says. The honesty setting changes how blunt TARS is, never whether it
-tells the truth. The screen's title shows which mode is on. Switching starts a fresh
+it's still Claude underneath, playing TARS: dry, deadpan, short answers.
+
+**The dials** work in both modes (lighter in Claude mode, full strength as TARS):
+
+| Humor | Style |
+|---|---|
+| 0–10 | No jokes |
+| 11–35 | Very dry, rare remarks |
+| 36–60 | Deadpan wit now and then |
+| 61–80 | Regular dry jokes, gentle teasing (default 75) |
+| 81–94 | Sardonic, mischievous, running gags |
+| 95–100 | Fully twisted: dark, absurd, mock-sinister robot humor |
+
+Honesty sets **bluntness**, from diplomatic to blunt (default 90). At every level it tells
+the truth. At any humor level it stays kind: no cruel jokes, and none when someone is
+upset or asking about safety. The screen's title shows which mode is on. Switching starts a fresh
 conversation.
 
 **How it works:** each question runs `claude -p` in this folder with TARS's tools, and

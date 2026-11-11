@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 import tars_memory
+import tars_settings
 from tars_client import Tars, TarsError
 
 try:  # mcp 2.x
@@ -132,7 +133,7 @@ async def personality(mode: str = "", honesty: int = -1, humor: int = -1) -> str
     if humor >= 0:
         changes["humor"] = int(humor)
     p = await _call(tars.persona, **changes) if changes else await _call(tars.persona)
-    return f"Mode: {p['mode']}. Honesty {p['honesty']}%, humor {p['humor']}%."
+    return f"Mode: {p['mode']}.\n" + tars_settings.describe(p)
 
 
 @mcp.tool()
