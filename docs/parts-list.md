@@ -22,10 +22,11 @@
 - [ ] Small 3W 4Ω speaker
 - [ ] USB mini mic
 
+- [ ] Brushed motor, 35T–55T (~45T), same can size as stock (likely 540) — stock is 12T, not 3S-safe
+
 ## Maybe (depends on tests / RC car)
 
 - [ ] 5V 5A buck converter — only if the existing one fails the load test
-- [ ] 3S-rated ESC — only if the car's ESC can't handle 12V (M12 is ~12.6V fully charged)
 
 ## Buck converter load test
 

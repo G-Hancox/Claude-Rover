@@ -26,7 +26,7 @@
 
 ## Open questions
 
-- [ ] Motor turn count (needs to be 35T+ for 3S)
+- [x] Motor turn count: **12T** — too low for 3S on this ESC. Plan: swap to a 35T–55T brushed motor (~45T), same can size (likely 540), reuse pinion.
 - [ ] Does the existing buck converter pass the load test?
 
 ## Things to watch
