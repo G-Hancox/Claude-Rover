@@ -31,7 +31,7 @@ def main():
     cfg = config_mod.load(args.config)
     if args.port:
         cfg.port = args.port
-    mock = args.mock
+    mock = args.mock or cfg.mock
     if mock:
         cfg.positions_file = ""  # don't touch the real robot's saved leg positions
 

@@ -199,6 +199,7 @@ Anything not in your file keeps its default. All settings are in
 
 | Setting | Default | |
 |---|---|---|
+| `mock` | `false` | `true` = pretend hardware, for testing before the parts are wired |
 | `move_time_scale` | `1.0` | Bigger = slower moves |
 | `swap_turns` | `false` | Swap left and right turns |
 | `release_after_move` | `true` | Servos go limp after each move |
@@ -248,15 +249,21 @@ through the mics. To require a password for everything except video, set
 `TARS_TOKEN=something` before starting; POSTs must then send it as an `X-TARS-Token`
 header. The phone page doesn't send it yet, so with a token set the page can only watch.
 
-## Start at boot (optional)
+## Start at boot
 
 ```bash
-sudo cp claude-tars.service /etc/systemd/system/
-sudo systemctl enable --now claude-tars
+sh install-service.sh
 ```
 
-Edit the user and paths in the service file first if they don't match yours. It uses the
-`~/tars-venv` Python so the TARS voice works.
+TARS then starts by itself whenever the Pi powers on: no SSH needed. It uses `tars.json`,
+so while the parts aren't wired up yet, set `"mock": true` there; set it back to `false`
+once the servo board is connected.
+
+After changing `tars.json` or pulling an update: `sudo systemctl restart claude-tars`.
+To see its messages: `journalctl -u claude-tars -f`. To turn it off: `sh install-service.sh remove`.
+
+**Switch the Pi off properly** before cutting power, or the SD card can get corrupted:
+`sudo poweroff`, then wait for the green light to stop blinking.
 
 ## Tests
 

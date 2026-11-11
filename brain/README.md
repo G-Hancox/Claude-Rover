@@ -53,6 +53,9 @@ there's no separate API bill. It gives Claude seven tools:
    ```
    Then try: *"Take a look around and tell me what you see."*
 
+**After the first time, just double-click `Start TARS.bat`** in this folder (you can drag a
+shortcut to it onto your desktop). It checks TARS is reachable, then opens Claude Code.
+
 If the tools don't show up, type `/mcp` inside Claude Code to see the server's status. On
 Mac or Linux, change `"command": "python"` to `"python3"` in `.mcp.json`.
 

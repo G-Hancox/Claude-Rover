@@ -9,6 +9,9 @@ LEG_KEYS = ("left_up_height", "left_down_height", "right_up_height", "right_down
 
 @dataclass
 class Config:
+    # true = pretend hardware (test pattern camera, no servos). Set false once it's wired up.
+    mock: bool = False
+
     # PCA9685 servo board
     i2c_bus: int = 1
     i2c_address: int = 0x40

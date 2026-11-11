@@ -1,4 +1,6 @@
 {
+  "mock": false,
+
   "left_up_height": 220,
   "left_down_height": 460,
   "right_up_height": 460,
