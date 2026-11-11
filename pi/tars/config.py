@@ -64,7 +64,10 @@ class Config:
     audio_in_device: str = "default"
     tts_engine: str = "espeak"      # "espeak", or "piper" for the TARS voice
     piper_model: str = "~/tars-voice/TARS.onnx"   # get it with: python3 -m tars.voice download
-    piper_speaker: str = "neutral"  # default emotion on multi-speaker voices like TARS
+    # Which of the TARS voice's 8 speakers to use, by number (0-7) or label. G compared all
+    # eight by ear: 0 and 2 sound most like TARS (the file labels them "anger" and "fear",
+    # but the labels look mixed up; TARS-AI's own config numbers them differently too).
+    piper_speaker: str = "0"
     voice_pace: float = 1.3         # TARS voice speed: 1.0 = as trained, higher = slower
     voice_steadiness: float = 0.6   # 0 = Piper's natural variation, 1 = every line delivered alike
     voice_emotions: bool = False    # true = use the emotion voices (they drift from TARS's sound)

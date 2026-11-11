@@ -62,6 +62,7 @@ def main():
         if name == "save":
             p.add_argument("out")
         p.add_argument("--emotion", choices=EMOTIONS)
+        p.add_argument("--speaker", help="speaker number 0-7 (overrides piper_speaker)")
         p.add_argument("--pace", type=float, help="1.0 = as trained, higher = slower")
         p.add_argument("--steady", type=float, help="0 = natural variation, 1 = every line alike")
         p.add_argument("--config")
@@ -76,7 +77,7 @@ def main():
         return 0
 
     cfg = config_mod.load(args.config)
-    engine = PiperVoiceEngine(cfg.piper_model, cfg.piper_speaker,
+    engine = PiperVoiceEngine(cfg.piper_model, args.speaker or cfg.piper_speaker,
                               args.pace if args.pace else cfg.voice_pace,
                               args.steady if args.steady is not None else cfg.voice_steadiness,
                               emotions=True)   # --emotion here always works, for trying them out

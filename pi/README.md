@@ -231,7 +231,7 @@ Anything not in your file keeps its default. All settings are in
 | `audio_out_device`, `audio_in_device` | `"default"` | ALSA device names |
 | `tts_engine` | `"espeak"` | `"piper"` for the TARS voice |
 | `piper_model` | `"~/tars-voice/TARS.onnx"` | Where the voice file is |
-| `piper_speaker` | `"neutral"` | Default emotion |
+| `piper_speaker` | `"0"` | Which of the voice's 8 speakers TARS uses (0-7). 0 and 2 sound most like TARS |
 | `voice_steadiness` | `0.6` | 0 = Piper's natural variation, 1 = every line delivered alike |
 | `voice_emotions` | `false` | Use the emotion voices. Off by default: they drift from TARS's sound |
 | `voice_pace` | `1.3` | TARS voice speed: 1.0 = as trained, higher = slower. Same for every emotion |
